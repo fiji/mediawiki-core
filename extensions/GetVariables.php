@@ -57,6 +57,7 @@ function wfSetupExtGetVariables() {
 function wfGetVariablesLanguageGetMagic( &$magicWords, $langCode = 0 ) {
 	$magicWords['getvar'] = array(0, 'getvar');
 	$magicWords['ifgetvar'] = array(0, 'ifgetvar');
+	return true;
 }
 
 ?>
