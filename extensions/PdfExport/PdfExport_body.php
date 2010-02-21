@@ -109,7 +109,7 @@ $wgPdfExportHttpsImages = false; // set to true if page is on a HTTPS server and
 			fpassthru($pipes[1]);
 			fclose($pipes[1]);
  
-			$returnStatus = proc_close($process);
+			$returnStatus = proc_close($htmldoc_process);
  
                         if($returnStatus == 1)
                         {
@@ -173,7 +173,11 @@ $wgPdfExportHttpsImages = false; // set to true if page is on a HTTPS server and
 			$form .= Xml::radioLabel(wfMsg ('pdf_portrait'), 'orientation' , 'portrait' , 'portrait', true); 	
 			$form .= Xml::radioLabel(wfMsg ('pdf_landscape'), 'orientation' , 'landscape' , 'landscape', false);  
                         $form .= '<br />' . wfMsg('pdf_size');
-	                $form .= Xml::listDropDown ('Size', wfMsg ('pdf_size_options'),'', wfMsg('pdf_size_default'));
+			$form .= Xml::openElement( 'select',
+				array( 'id' => 'Size', 'name' => 'Size' ) );
+			foreach ( preg_split('/\s+/', wfMsg ('pdf_size_options')) as $size )
+				$form .= Xml::option ($size, 'Size', $size == wfMsg('pdf_size_default'));
+                        $form .= Xml::closeElement( 'select' );
 			// input field for name of PDF
 			$form .= '<br />';
 			$form .= wfMsg ('pdf_filename').":";
