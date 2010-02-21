@@ -1,0 +1,3 @@
+=== Description ===
+
+The Google Maps Widget allows a Google Map to be embedded in the page.
