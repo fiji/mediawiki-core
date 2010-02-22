@@ -25,6 +25,7 @@ class ExtGetVariables {
 			$parser->setFunctionHook( 'getvar', array( &$this, 'getvar' ) );
 			$parser->setFunctionHook( 'ifgetvar', array( &$this, 'ifgetvar' ) );
 		}
+		return true;
 	}
 
 	function getvar( &$parser, $name = '' ) {
