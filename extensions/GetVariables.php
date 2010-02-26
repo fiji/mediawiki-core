@@ -33,7 +33,8 @@ class ExtGetVariables {
 	}
 
 	function ifgetvar( &$parser, $name = '', $then = '', $else = '' ) {
-		if (isset($_GET[$name]) && $_GET[$name] != '')
+		if (strstr($name, "{") < 0 && isset($_GET[$name]) &&
+				$_GET[$name] != '')
 			return $then;
 		else
 			return $else;
