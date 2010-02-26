@@ -99,6 +99,6 @@ function renderFijiRandomSnapshot( $input, $argv, $parser ) {
 		return $result;
 	}
 	$array = getFijiRandomSnapshot();
-	return '<div class="floatright" style="background:#ffffffff; background-color:#ffffffff; z-index:100;"><span>' . renderProject($parser, $array)
+	return '<div class="floatright" style="background:#ffffffff; background-color:#ffffffff; z-index:1;"><span>' . renderProject($parser, $array)
 		. "</span></div>\n";
 }
