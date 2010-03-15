@@ -45,7 +45,8 @@ function getFijiRandomSnapshot() {
 	$revision = Revision::newFromTitle($title);
 	$text = $revision->getRawText();
 	$projects = explode("\n\n", $text);
-	$project = $projects[rand(0, count($projects) - 1)];
+	$index = rand(0, count($projects) - 1);
+	$project = $projects[$index];
 	return splitProject($project);
 }
 
