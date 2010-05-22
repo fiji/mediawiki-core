@@ -18,22 +18,19 @@ $wgHooks['LanguageGetMagic'][] = 'wfGetVariablesLanguageGetMagic';
 
 class ExtGetVariables {
 	function registerParser( &$parser ) {
-		if ( defined( get_class( $parser ) . '::SFH_OBJECT_ARGS' ) ) {
-			$parser->setFunctionHook( 'getvar', array( &$this, 'getvar' ), SFH_OBJECT_ARGS );
-			$parser->setFunctionHook( 'ifgetvar', array( &$this, 'ifgetvar' ), SFH_OBJECT_ARGS );
-		} else {
-			$parser->setFunctionHook( 'getvar', array( &$this, 'getvar' ) );
-			$parser->setFunctionHook( 'ifgetvar', array( &$this, 'ifgetvar' ) );
-		}
+		$parser->setFunctionHook( 'getvar', array( &$this, 'getvar' ) );
+		$parser->setFunctionHook( 'ifgetvar', array( &$this, 'ifgetvar' ) );
 		return true;
 	}
 
 	function getvar( &$parser, $name = '' ) {
+		$parser->disableCache();
 		return htmlspecialchars($_GET[$name]);
 	}
 
 	function ifgetvar( &$parser, $name = '', $then = '', $else = '' ) {
-		if (strstr($name, "{") < 0 && isset($_GET[$name]) &&
+		$parser->disableCache();
+		if (!strstr($name, "{") && isset($_GET[$name]) &&
 				$_GET[$name] != '')
 			return $then;
 		else
