@@ -1,7 +1,7 @@
 <?php
 if (!defined('MEDIAWIKI')) die();
 
-global $wgMessageCache, $wgContLang, $wgContLanguageCode, $wgCiteDefaultText;
+global $wgContLang, $wgContLanguageCode, $wgCiteDefaultText;
 
 $dir = dirname( __FILE__ ) . DIRECTORY_SEPARATOR;
 $code = $wgContLang->lc( $wgContLanguageCode );
@@ -12,9 +12,10 @@ class SpecialCite extends SpecialPage {
 	function SpecialCite() {
 		SpecialPage::SpecialPage( 'Cite' );
 	}
-	
+
 	function execute( $par ) {
 		global $wgOut, $wgRequest, $wgUseTidy;
+		wfLoadExtensionMessages( 'SpecialCite' );
 
 		// Having tidy on causes whitespace and <pre> tags to
 		// be generated around the output of the CiteOutput
@@ -26,17 +27,18 @@ class SpecialCite extends SpecialPage {
 
 		$page = isset( $par ) ? $par : $wgRequest->getText( 'page' );
 		$id = $wgRequest->getInt( 'id' );
-		
-		$title = Title::newFromText( $page );
-		$article = new Article( $title );
 
+		$title = Title::newFromText( $page );
+		if ( $title ) {
+			$article = new Article( $title );
+		}
 		$cform = new CiteForm( $title );
 
-		if ( is_null( $title ) || ! $article->exists() )
+		if ( !$title || ! $article->exists() )
 			$cform->execute();
 		else {
 			$cform->execute();
-			
+
 			$cout = new CiteOutput( $title, $article, $id );
 			$cout->execute();
 		}
@@ -45,16 +47,16 @@ class SpecialCite extends SpecialPage {
 
 class CiteForm {
 	var $mTitle;
-	
+
 	function CiteForm( &$title ) {
 		$this->mTitle =& $title;
 	}
-	
+
 	function execute() {
 		global $wgOut, $wgTitle;
 
 		$wgOut->addHTML(
-			wfElement( 'form',
+			Xml::element( 'form',
 				array(
 					'id' => 'specialcite',
 					'method' => 'get',
@@ -62,27 +64,27 @@ class CiteForm {
 				),
 				null
 			) .
-				wfOpenElement( 'label' ) .
+				Xml::openElement( 'label' ) .
 					wfMsgHtml( 'cite_page' ) . ' ' .
-					wfElement( 'input',
+					Xml::element( 'input',
 						array(
 							'type' => 'text',
-							'size' => 20,
+							'size' => 30,
 							'name' => 'page',
 							'value' => is_object( $this->mTitle ) ? $this->mTitle->getPrefixedText() : ''
 						),
 						''
 					) .
 					' ' .
-					wfElement( 'input',
+					Xml::element( 'input',
 						array(
 							'type' => 'submit',
 							'value' => wfMsgHtml( 'cite_submit' )
 						),
 						''
 					) .
-				wfCloseElement( 'label' ) .
-			wfCloseElement( 'form' )
+				Xml::closeElement( 'label' ) .
+			Xml::closeElement( 'form' )
 		);
 	}
 
@@ -94,7 +96,7 @@ class CiteOutput {
 
 	function CiteOutput( &$title, &$article, $id ) {
 		global $wgHooks, $wgParser;
-		
+
 		$this->mTitle =& $title;
 		$this->mArticle =& $article;
 		$this->mId = $id;
@@ -106,7 +108,7 @@ class CiteOutput {
 
 		$wgParser->setHook( 'citation', array( $this, 'CiteParse' ) );
 	}
-	
+
 	function execute() {
 		global $wgOut, $wgUser, $wgParser, $wgHooks, $wgCiteDefaultText;
 
@@ -118,7 +120,7 @@ class CiteOutput {
 		}
 		$this->mArticle->fetchContent( $this->mId, false );
 		$ret = $wgParser->parse( $msg, $this->mTitle, $this->mParserOptions, false, true, $this->mArticle->getRevIdFetched() );
-		$wgOut->addHtml( $ret->getText() );
+		$wgOut->addHTML( $ret->getText() );
 	}
 
 	function genParserOptions() {
@@ -134,7 +136,7 @@ class CiteOutput {
 
 	function CiteParse( $in, $argv ) {
 		global $wgTitle;
-		
+
 		$ret = $this->mParser->parse( $in, $wgTitle, $this->mParserOptions, false );
 
 		return $ret->getText();
@@ -145,9 +147,7 @@ class CiteOutput {
 	function timestamp( &$parser, &$ts ) {
 		if ( isset( $parser->mTagHooks['citation'] ) )
 			$ts = wfTimestamp( TS_UNIX, $this->mArticle->getTimestamp() );
-		
+
 		return true;
 	}
 }
-
-?>
