@@ -31,7 +31,7 @@ class SpecialIncoming extends SpecialPage {
 
 		$path = ereg_replace("[^/]*$", "", __FILE__);
 		if ($this->startsWith($path, $_SERVER['DOCUMENT_ROOT']))
-			$this->dirIcon = '<img src="' . substr($path,
+			$this->dirIcon = '<img src="/' . substr($path,
 				strlen($_SERVER['DOCUMENT_ROOT']))
 				. '/Gnome-document-open.svg" width="16"'
 				. ' alt="DIR"/>';
