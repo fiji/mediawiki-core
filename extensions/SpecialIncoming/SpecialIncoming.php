@@ -94,9 +94,14 @@ class SpecialIncoming extends SpecialPage {
 			return 'Do not try to be sneaky.';
 
 		if (is_file($dir)) {
+			/*
+				This does not work with pacific's PHP yet:
 			$finfo = finfo_open(FILEINFO_MIME_TYPE);
-			header('Content-Type: ' . finfo_file($finfo, $dir));
+			$content_type = finfo_file($finfo, $dir);
 			finfo_close($finfo);
+			*/
+			$content_type = mime_content_type($dir);
+			header('Content-Type: ' . $content_type);
 			$stat = lstat($dir);
 			header('Content-Length: ' . $stat['size']);
 			header('Content-Disposition: inline; filename="'
