@@ -35,7 +35,7 @@ function wfListNewsExtension() {
 
 function renderListNews( $input, $argv, $parser ) {
 	$parser->disableCache();
-	$limit = $argv['limit'];
+	$limit = isset($argv['limit']) ? $argv['limit'] : 0;
 	if ($limit == 0)
 		$limit = 5;
 
