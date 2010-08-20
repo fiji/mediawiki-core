@@ -101,6 +101,8 @@ class SpecialIncoming extends SpecialPage {
 			finfo_close($finfo);
 			*/
 			$content_type = mime_content_type($dir);
+			if ($this->endsWith($dir, '.flv'))
+				$content_type = 'video/x-flv';
 			header('Content-Type: ' . $content_type);
 			$stat = lstat($dir);
 			header('Content-Length: ' . $stat['size']);
