@@ -104,11 +104,17 @@ class SpecialIncoming extends SpecialPage {
 			if ($this->endsWith($dir, '.flv'))
 				$content_type = 'video/x-flv';
 			header('Content-Type: ' . $content_type);
-			$stat = lstat($dir);
-			header('Content-Length: ' . $stat['size']);
+			header('Content-Length: ' . (string)filesize($dir), true);
 			header('Content-Disposition: inline; filename="'
 				. substr($dir, strrpos($dir, '/') + 1) . '"');
-			fpassthru(fopen($dir, 'rb'));
+			if ($fd = fopen($dir, 'rb')) {
+				while(!feof($fd)) {
+					print fread($fd, 4096);
+					flush();
+					ob_flush();
+				}
+				fclose($fd);
+			}
 			exit;
 		}
 
