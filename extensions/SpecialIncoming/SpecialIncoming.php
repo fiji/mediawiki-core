@@ -107,6 +107,7 @@ class SpecialIncoming extends SpecialPage {
 			header('Content-Length: ' . (string)filesize($dir), true);
 			header('Content-Disposition: inline; filename="'
 				. substr($dir, strrpos($dir, '/') + 1) . '"');
+			session_write_close();
 			if ($fd = fopen($dir, 'rb')) {
 				while(!feof($fd)) {
 					print fread($fd, 4096);
