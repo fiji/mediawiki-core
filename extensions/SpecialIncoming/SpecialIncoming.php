@@ -18,6 +18,7 @@ class SpecialIncoming extends SpecialPage {
 	var $dirIcon;
 	var $ascending;
 	var $sortkey;
+	var $geomap;
 
 	function SpecialIncoming($incoming = "/var/www/uploads/incoming/")
 	{
@@ -81,13 +82,55 @@ class SpecialIncoming extends SpecialPage {
 		return !strcmp(substr($haystack, 0, $needlen), $needle);
 	}
 
+	function getGeoMap() {
+		if (isset($this->geomap))
+			return;
+		$this->geomap = array();
+		$handle = fopen('/var/www/uploads/map.txt', 'r');
+		if (!$handle)
+			return;
+		$mysql = mysql_connect('localhost', 'root', '');
+		if (!$mysql) {
+			fclose($handle);
+			return;
+		}
+		mysql_select_db('ipinfodb', $mysql);
+		while (($line = fgets($handle)))
+			if (preg_match('/^([^ ]*) (.*)\n?$/', $line, $matches)) {
+				$numbers = preg_split('/\./', $matches[1]);
+				$ip = $numbers[0] * 0x100000 + $numbers[1] * 0x10000 + $numbers[2] * 0x100 + $numbers[3];
+				$result = mysql_query('SELECT latitude, longitude FROM ip_group_city WHERE ip_start <= ' . $ip . ' ORDER BY ip_start DESC LIMIT 1', $mysql);
+				$line = mysql_fetch_array($result);
+				$this->geomap[$matches[2]] = array($matches[1], $line ? $line[0] . ',' . $line[1] : '');
+			}
+		fclose($handle);
+	}
+
 	function listing() {
+		if (isset($_GET['geolink'])) {
+			if (!preg_match('/^[-+]?[\.0-9]+\s*,\s*[-+]?[\.0-9]+$/', $_GET['geolink']))
+				return 'Invalid coordinates: ' . htmlspecialchars($_GET['geolink']);
+			return '<div id="map_canvas" style="width:100%; height:80%"></div>
+<script type="text/javascript" src="http://maps.google.com/maps/api/js?sensor=false&key=ABQIAAAAR6MdZR1iDc4XOW6L4yy9AhT4kiVGNpNBiRrgOV1HD4AqqeLlaBS23KFDtfTyZ8bYP8zlH6tRHPyj0Q"></script>
+<script>
+    var latlng = new google.maps.LatLng(51.058671, 13.784402);
+    var myOptions = {
+      zoom: 1,
+      center: latlng,
+      mapTypeId: google.maps.MapTypeId.ROADMAP
+    };
+    var map = new google.maps.Map(document.getElementById("map_canvas"), myOptions);
+    new google.maps.Marker({ position : new google.maps.LatLng(' . $_GET['geolink'] . '), map: map });
+</script>
+';
+		}
+		$this->getGeoMap();
+
 		$dir = isset($_GET['dir']) ? $_GET['dir'] : $this->incoming;
 
 		$is_dir = is_dir($dir);
 		if ($is_dir && !$this->endsWith($dir, '/'))
 			$dir .= '/';
-
 		if (!$this->startsWith($dir, $this->incoming)
 				|| strstr($dir, '/../') !== false
 				|| (!is_dir($dir) && !is_file($dir)))
@@ -173,6 +216,14 @@ class SpecialIncoming extends SpecialPage {
 		foreach ($items as $key => $stat) {
 			$stat = $items[$key];
 			$is_dir = is_dir($stat['path']);
+			$geolink = '';
+			if (isset($this->geomap[$key])) {
+				if ($this->geomap[$key][1] != '')
+					//$geolink = $skin->link($wgTitle, ' (' . $this->geomap[$key][0] . ')', array(), array('geolink' => $this->geomap[$key][1]), array('known', 'noclasses'));
+					$geolink = ' (<a href="http://maps.google.com/maps?q=' . str_replace(array('+', ' '), array('%2B', '+'), $this->geomap[$key][1]) . '+(' . urlencode($this->geomap[$key][0]) . ')">' . htmlspecialchars($this->geomap[$key][0]) . '</a>)';
+				else
+					$geolink = ' (' . $this->geomap[$key] . ')';
+			}
 			$list .= "\t<tr>\n"
 				. "\t\t<td>" . ($is_dir ? $this->dirIcon
 					: '&nbsp;') . "</td>\n"
@@ -182,6 +233,7 @@ class SpecialIncoming extends SpecialPage {
 					array(),
 					array('dir' => $stat['path']),
 					array('known', 'noclasses'))
+					. $geolink
 					. "</td>\n"
 				. "\t\t<td>" . ($is_dir ? '&nbsp;'
 					: $stat['size']) . "</td>\n"
