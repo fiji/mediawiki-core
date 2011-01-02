@@ -23,9 +23,9 @@ class NewsChannel extends SpecialPage
 	/** Channel title. */
 	var $channelTitle = 'Fiji news';
 	/** Channel description, preferably just one sentence. */
-	var $channelDescription = 'News about Fiji, the Fatastic ImnageJ distribution.'; 
+	var $channelDescription = 'News about Fiji, the Fatastic ImageJ distribution.'; 
 	/** Link to site. */
-	var $channelSiteLink = 'http://pacific.mpi-cbg.de';
+	var $channelSiteLink = 'http://pacific.mpi-cbg.de/';
 	/** Channel's language code and optional country subcode. */
 	var $channelLanguage = 'en-US';
 	/** Copyright string. */
@@ -41,13 +41,13 @@ class NewsChannel extends SpecialPage
 	/** Default number of recent (most fresh) news to list on the channel. */
 	var $channelNewsItems = '10';
 	/** Name or alias of channel's editor-in-chief. */
-	var $channelEditorName = 'John Doe';
+	var $channelEditorName = 'Johannes Schindelin';
 	/** E-mail of channel's editor-in-chief. */
-	var $channelEditorAddress = 'newseditor@mywikisite.com';
+	var $channelEditorAddress = 'schindelin@mpi-cbg.de';
 	/** Name or alias of channel's webmaster. */
-	var $channelWebMasterName = 'Jane Doe';
+	var $channelWebMasterName = 'Johannes Schindelin';
 	/** E-mail of channel's webmaster. */
-	var $channelWebMasterAddress = 'webmaster@mywikisite.com';
+	var $channelWebMasterAddress = 'schindelin@mpi-cbg.de';
 	/** Title of category, containing news articles. */
 	var $newsWikiCategory = 'News';
 	/** Title of category, that must be absolutely excluded from export. */
