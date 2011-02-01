@@ -69,9 +69,10 @@ function renderProject($parser, $array, $width = 400) {
 	$desc_plain = str_replace('[[', '',
 			str_replace(']]', '', $description));
 	$desc_link = $parser->recursiveTagParse($description);
+	$title = Title::makeTitle('', $name);
 	return '<table border="0" width="' . $width . '"><tr><td>'
-		. '<a href="/wiki/index.php/'
-		. $name . '" class="image" title="' . $desc_plain
+		. '<a href="' . $title->getLocalURL()
+		. '" class="image" title="' . $desc_plain
 		. '"><img alt="' . $desc_plain . '" src="' . $img
 		. '" width="' . $width . '" /></a></td></tr><tr><td>'
 		. $desc_link . "</td></tr></table>";
