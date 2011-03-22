@@ -313,10 +313,16 @@ function render_include ( $input , $argv, &$parser )
             $height = $argv['height'];
         else
             $height = '100%';
- 
+        if (isset($argv['frameborder']))
+            $frameborder = $argv['frameborder'];
+        else
+            $frameborder = '1';
+  
         $output = '<iframe src="'.
             $argv['src'].
-            '" frameborder="1" scrolling="1" width="'.
+            '" frameborder="'.
+            $frameborder .
+            '" scrolling="1" width="'.
             $width .
             '" height="'.
             $height .
