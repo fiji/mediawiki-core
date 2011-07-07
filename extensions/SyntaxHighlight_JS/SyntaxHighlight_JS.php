@@ -40,16 +40,34 @@ function wfSyntaxHighlightJSExtension() {
 	$wgParser->setHook( "source", "renderSource" );
 }
 
+function syntaxHighlightingCapitalize( $language ) {
+	$capitalized = ucfirst($language);
+	if (!strcasecmp($capitalized, "javascript"))
+		$capitalized = "JScript";
+	return $capitalized;
+}
+
 function renderSource( $input, $argv, $parser ) {
 	global $wgScriptPath;
 	$extDir = $wgScriptPath . '/extensions/SyntaxHighlight_JS/';
 	$shDir = $extDir;
 	$styleDir = $shDir . 'styles/';
 	$scriptDir = $shDir . 'scripts/';
+	$thisPath = dirname(__FILE__);
 
-	$text = '<pre ';
-	if ( isset( $argv['lang'] ) )
+	$text = '<pre';
+	if ( isset( $argv['lang'] ) ) {
+		if (!file_exists($thisPath . '/scripts/shBrush' . syntaxHighlightingCapitalize($argv['lang']) . '.js')) {
+			$text = '';
+			static $missing = array();
+			if (!in_array($argv['lang'], $missing)) {
+				$missing[$argv['lang']] = 1;
+				$text = '<script>alert("No syntax-highlighting for language ' . urlencode($argv['lang']) . '");</script>';
+			}
+			return $text . '<pre>' . trim($input) . '</pre>';
+		}
 		$text .= ' class="brush:' . $argv['lang'] . '"';
+	}
 	$text .= ">\n";
 	$text .= str_replace(array('<', '>'), array('&lt;', '&gt;'), trim($input));
 	$text .= "</pre>\n";
@@ -71,10 +89,8 @@ SyntaxHighlighter.defaults["toolbar"] = false;
 		$text .= '<script type="text/javascript">SyntaxHighlighter.all();</script>';
 		$initialized = true;
 	}
-	if ( !in_array($argv['lang'], $initializedLanguages) ) {
-		$capitalized = ucfirst($argv['lang']);
-		if (!strcasecmp($capitalized, "javascript"))
-			$capitalized = "JScript";
+	if ( isset($argv['lang']) && !in_array($argv['lang'], $initializedLanguages) ) {
+		$capitalized = syntaxHighlightingCapitalize($argv['lang']);
 		$parser->mOutput->addHeadItem( '<script src="' . $scriptDir . 'shBrush' . $capitalized . '.js" type="text/javascript"></script>' . "\n" );
 		$initializedLanguages[] = $argv['lang'];
 	}
