@@ -37,19 +37,19 @@ $wgExtensionFunctions[] = "wfSyntaxHighlightJSExtension";
 function wfSyntaxHighlightJSExtension() {
 	global $wgParser;
 
-	$wgParser->setHook( "source", "renderSource" );
+	$wgParser->setHook( "source", "wfSyntaxHighlightingRender" );
 }
 
-function syntaxHighlightingCapitalize( $language ) {
+function wfSyntaxHighlightingCapitalize( $language ) {
 	$capitalized = ucfirst($language);
 	if (!strcasecmp($capitalized, "javascript"))
 		$capitalized = "JScript";
 	return $capitalized;
 }
 
-function syntaxHighlightingMissing( $language ) {
+function wfSyntaxHighlightingMissing( $language ) {
 	$thisDir = dirname(__FILE__);
-	if (file_exists($thisDir . '/scripts/shBrush' . syntaxHighlightingCapitalize($language) . '.js'))
+	if (file_exists($thisDir . '/scripts/shBrush' . wfSyntaxHighlightingCapitalize($language) . '.js'))
 		return false;
 
 	if (!isset($_POST['wpPreview']))
@@ -76,7 +76,7 @@ function syntaxHighlightingMissing( $language ) {
 	return '<script>alert("No syntax-highlighting for language ' . urlencode($language) . '\n\nAvailable: ' . $all . '");</script>';
 }
 
-function renderSource( $input, $argv, $parser ) {
+function wfSyntaxHighlightingRender( $input, $argv, $parser ) {
 	global $wgScriptPath;
 	$extDir = $wgScriptPath . '/extensions/SyntaxHighlight_JS/';
 	$shDir = $extDir;
@@ -85,7 +85,7 @@ function renderSource( $input, $argv, $parser ) {
 
 	$text = '<pre';
 	if ( isset( $argv['lang'] ) ) {
-		$missing = syntaxHighlightingMissing( $argv['lang'] );
+		$missing = wfSyntaxHighlightingMissing( $argv['lang'] );
 		if ($missing !== false)
 			return $missing . '<pre>' . $input . '</pre>';
 		$text .= ' class="brush:' . $argv['lang'] . '"';
@@ -112,7 +112,7 @@ SyntaxHighlighter.defaults["toolbar"] = false;
 		$initialized = true;
 	}
 	if ( isset($argv['lang']) && !in_array($argv['lang'], $initializedLanguages) ) {
-		$capitalized = syntaxHighlightingCapitalize($argv['lang']);
+		$capitalized = wfSyntaxHighlightingCapitalize($argv['lang']);
 		$parser->mOutput->addHeadItem( '<script src="' . $scriptDir . 'shBrush' . $capitalized . '.js" type="text/javascript"></script>' . "\n" );
 		$initializedLanguages[] = $argv['lang'];
 	}
