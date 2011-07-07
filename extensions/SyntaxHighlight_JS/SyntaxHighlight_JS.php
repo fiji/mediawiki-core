@@ -47,25 +47,47 @@ function syntaxHighlightingCapitalize( $language ) {
 	return $capitalized;
 }
 
+function syntaxHighlightingMissing( $language ) {
+	$thisDir = dirname(__FILE__);
+	if (file_exists($thisDir . '/scripts/shBrush' . syntaxHighlightingCapitalize($language) . '.js'))
+		return false;
+
+	if (!isset($_POST['wpPreview']))
+		return '';
+	static $missing = array();
+	if (in_array($argv['lang'], $missing))
+		return '';
+	$missing[$argv['lang']] = 1;
+	static $all;
+	if (!isset($all)) {
+		$dir = opendir($thisDir . '/scripts');
+		while (($entry = readdir($dir)) !== false) {
+			$name = preg_replace('~shBrush(.*)\.js~', '$1', $entry);
+			if ($name == $entry)
+				continue;
+			if (isset($all))
+				$all .= ', ';
+			else
+				$all = '';
+			$all .= $name;
+		}
+		closedir($dir);
+	}
+	return '<script>alert("No syntax-highlighting for language ' . urlencode($language) . '\n\nAvailable: ' . $all . '");</script>';
+}
+
 function renderSource( $input, $argv, $parser ) {
 	global $wgScriptPath;
 	$extDir = $wgScriptPath . '/extensions/SyntaxHighlight_JS/';
 	$shDir = $extDir;
 	$styleDir = $shDir . 'styles/';
 	$scriptDir = $shDir . 'scripts/';
-	$thisPath = dirname(__FILE__);
 
 	$text = '<pre';
 	if ( isset( $argv['lang'] ) ) {
-		if (!file_exists($thisPath . '/scripts/shBrush' . syntaxHighlightingCapitalize($argv['lang']) . '.js')) {
-			$text = '';
-			static $missing = array();
-			if (!in_array($argv['lang'], $missing)) {
-				$missing[$argv['lang']] = 1;
-				$text = '<script>alert("No syntax-highlighting for language ' . urlencode($argv['lang']) . '");</script>';
-			}
-			return $text . '<pre>' . trim($input) . '</pre>';
-		}
+		$missing = syntaxHighlightingMissing( $argv['lang'] );
+		if ($missing !== false)
+			return $missing . '<pre>' . $input . '</pre>';
 		$text .= ' class="brush:' . $argv['lang'] . '"';
 	}
 	$text .= ">\n";
