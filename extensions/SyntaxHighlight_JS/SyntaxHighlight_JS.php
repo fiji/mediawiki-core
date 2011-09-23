@@ -100,8 +100,7 @@ function wfSyntaxHighlightingRender( $input, $argv, $parser ) {
 		$head = '<link type="text/css" rel="stylesheet" href="' .  $styleDir . "shCoreDjango.css\"/>\n";
 		$head .= '<link type="text/css" rel="stylesheet" href="' .  $styleDir . "shThemeFiji.css?32\"/>\n";
 
-		foreach ( array( 'XRegExp', 'shCore' ) as $basename )
-			$head .= '<script src="' . $scriptDir . $basename . '.js" type="text/javascript"></script>' . "\n";
+		$head .= '<script src="' . $scriptDir . 'shCore.js" type="text/javascript"></script>' . "\n";
 		$head .= '<script type="text/javascript">
 SyntaxHighlighter.defaults["pad-line-numbers"] = 3;
 SyntaxHighlighter.defaults["toolbar"] = false;
