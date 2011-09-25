@@ -132,7 +132,7 @@ syntaxhighlighter textarea {
   color: #0000ff !important;
 }
 .syntaxhighlighter .preprocessor {
-  color: #646464 !important;
+  color: #008000 !important;
 }
 .syntaxhighlighter .variable {
   color: #aa7700 !important;
