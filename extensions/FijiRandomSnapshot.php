@@ -43,6 +43,8 @@ function splitProject($project) {
 function getFijiRandomSnapshot() {
 	$title = Title::newFromText('Fiji:Featured_Projects');
 	$revision = Revision::newFromTitle($title);
+	if ($revision == null)
+		return null;
 	$text = $revision->getRawText();
 	$projects = explode("\n\n", $text);
 	$index = rand(0, count($projects) - 1);
@@ -53,6 +55,8 @@ function getFijiRandomSnapshot() {
 function getAllSnapshots() {
 	$title = Title::newFromText('Fiji:Featured_Projects');
 	$revision = Revision::newFromTitle($title);
+	if ($revision == null)
+		return null;
 	$text = $revision->getRawText();
 	$projects = explode("\n\n", $text);
 	$result = array();
@@ -88,6 +92,8 @@ function renderFijiRandomSnapshot( $input, $argv, $parser ) {
 	$parser->disableCache();
 	if (isset($argv['all'])) {
 		$array = getAllSnapshots();
+		if ($array == null)
+			return 'Please edit <span style="color:red;">Fiji:Featured_Projects</span>';
 		$result = '<table border="0"><tr><th colspan="2"><i>Featured Projects</i></th>';
 		$counter = 0;
 		foreach ($array as $project) {
@@ -101,6 +107,8 @@ function renderFijiRandomSnapshot( $input, $argv, $parser ) {
 		return $result;
 	}
 	$array = getFijiRandomSnapshot();
+	if (!isset($array))
+		return '';
 	return '<div class="floatright" style="background:#ffffffff; background-color:#ffffffff; z-index:1;"><span>' . renderProject($parser, $array)
 		. "</span></div>\n";
 }
