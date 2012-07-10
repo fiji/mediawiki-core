@@ -87,6 +87,8 @@ class UsercreateTemplate extends BaseTemplate {
 				?>
 			</div>
 
+<input name="wpCreateaccountMail" type="hidden" value'"1" />
+<?php if (false) { ?>
 			<div>
 				<?php if ( $this->data['createemail'] ) { ?>
 					<label class="mw-ui-checkbox-label">
@@ -99,7 +101,9 @@ class UsercreateTemplate extends BaseTemplate {
 					</label>
 				<?php } ?>
 			</div>
+<?php } ?>
 
+<?php if( !$this->data['emailrequired'] ) { ?>
 			<div class="mw-row-password">
 				<label for='wpPassword2'><?php $this->msg( 'userlogin-yourpassword' ); ?></label>
 				<?php
@@ -143,6 +147,7 @@ class UsercreateTemplate extends BaseTemplate {
 					) + User::passwordChangeInputAttribs() );
 				?>
 			</div>
+<?php } ?>
 
 			<div>
 				<?php if ( $this->data['useemail'] ) { ?>
