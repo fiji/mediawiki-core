@@ -1158,7 +1158,7 @@ class LoginForm extends SpecialPage {
 		$template->set( 'action', $titleObj->getLocalURL( $q ) );
 		$template->set( 'message', $msg );
 		$template->set( 'messagetype', $msgtype );
-		$template->set( 'createemail', $wgEnableEmail && $user->isLoggedIn() );
+		$template->set( 'createemail', $wgEnableEmail && ( $wgEmailConfirmToEdit || $user->isLoggedIn() ) );
 		$template->set( 'userealname', !in_array( 'realname', $wgHiddenPrefs ) );
 		$template->set( 'useemail', $wgEnableEmail );
 		$template->set( 'emailrequired', $wgEmailConfirmToEdit );
