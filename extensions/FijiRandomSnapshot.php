@@ -41,7 +41,7 @@ function splitProject($project) {
 }
 
 function getFijiRandomSnapshot() {
-	$title = Title::newFromText('Fiji:Featured_Projects');
+	$title = Title::newFromText($GLOBALS['wgSitename'] . ':Featured_Projects');
 	$revision = Revision::newFromTitle($title);
 	if ($revision == null)
 		return null;
@@ -53,7 +53,7 @@ function getFijiRandomSnapshot() {
 }
 
 function getAllSnapshots() {
-	$title = Title::newFromText('Fiji:Featured_Projects');
+	$title = Title::newFromText($GLOBALS['wgSitename'] . ':Featured_Projects');
 	$revision = Revision::newFromTitle($title);
 	if ($revision == null)
 		return null;
