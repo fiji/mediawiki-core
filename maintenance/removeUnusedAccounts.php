@@ -125,8 +125,14 @@ class RemoveUnusedAccounts extends Maintenance {
 
 		$dbo->begin( __METHOD__ );
 		foreach ( $checks as $table => $fprefix ) {
-			$conds = array( $fprefix . '_user' => $id );
-			$count += (int)$dbo->selectField( $table, 'COUNT(*)', $conds, __METHOD__ );
+			$query = 'SELECT COUNT(*) AS count FROM ' . $table . ' WHERE ' . $fprefix . '_user = "' . $id . '"';
+			if ( $table == 'logging' ) {
+				$query .= ' AND NOT log_user_text = log_title';
+			}
+			$res = $dbo->query( $query, __METHOD__ );
+			foreach ( $res as $row ) {
+				$count += (int)$row->count;
+			}
 		}
 
 		$conds = array( 'log_user' => $id, 'log_type != ' . $dbo->addQuotes( 'newusers' ) );
