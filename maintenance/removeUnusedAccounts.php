@@ -36,6 +36,7 @@ class RemoveUnusedAccounts extends Maintenance {
 		$this->addOption( 'delete', 'Actually delete the account' );
 		$this->addOption( 'ignore-groups', 'List of comma-separated groups to exclude', false, true );
 		$this->addOption( 'ignore-touched', 'Skip accounts touched in last N days', false, true );
+		$this->addOption( 'unauthenticated', 'Only delete unauthenticated accounts', false, false );
 	}
 
 	public function execute() {
@@ -46,7 +47,7 @@ class RemoveUnusedAccounts extends Maintenance {
 		$this->output( "Checking for unused user accounts...\n" );
 		$del = array();
 		$dbr = wfGetDB( DB_SLAVE );
-		$res = $dbr->select( 'user', array( 'user_id', 'user_name', 'user_touched' ), '', __METHOD__ );
+		$res = $dbr->select( 'user', array( 'user_id', 'user_name', 'user_touched', 'user_registration' ), '', __METHOD__ );
 		if ( $this->hasOption( 'ignore-groups' ) ) {
 			$excludedGroups = explode( ',', $this->getOption( 'ignore-groups' ) );
 		} else {
@@ -57,12 +58,14 @@ class RemoveUnusedAccounts extends Maintenance {
 			$this->error( "Please put a valid positive integer on the --ignore-touched parameter.", true );
 		}
 		$touchedSeconds = 86400 * $touched;
+		$unauthenticated = $this->hasOption( 'unauthenticated' );
 		foreach ( $res as $row ) {
 			# Check the account, but ignore it if it's within a $excludedGroups group or if it's touched within the $touchedSeconds seconds.
 			$instance = User::newFromId( $row->user_id );
 			if ( count( array_intersect( $instance->getEffectiveGroups(), $excludedGroups ) ) == 0
 				&& $this->isInactiveAccount( $row->user_id, true )
-				&& wfTimestamp( TS_UNIX, $row->user_touched ) < wfTimestamp( TS_UNIX, time() - $touchedSeconds )
+				&& wfTimestamp( TS_UNIX, $unauthenticated ? $row->user_registration : $row->user_touched ) < wfTimestamp( TS_UNIX, time() - $touchedSeconds )
+				&& ( !$unauthenticated || !$instance->isEmailConfirmed() )
 				) {
 				# Inactive; print out the name and flag it
 				$del[] = $row->user_id;
