@@ -37,6 +37,7 @@ class RemoveUnusedAccounts extends Maintenance {
 		$this->addOption( 'ignore-groups', 'List of comma-separated groups to exclude', false, true );
 		$this->addOption( 'ignore-touched', 'Skip accounts touched in last N days', false, true );
 		$this->addOption( 'unauthenticated', 'Only delete unauthenticated accounts', false, false );
+		$this->addOption( 'delete-logs', 'Pretend that the account was never added', false, false );
 	}
 
 	public function execute() {
@@ -46,6 +47,7 @@ class RemoveUnusedAccounts extends Maintenance {
 		# Do an initial scan for inactive accounts and report the result
 		$this->output( "Checking for unused user accounts...\n" );
 		$del = array();
+		$delLogging = array();
 		$dbr = wfGetDB( DB_SLAVE );
 		$res = $dbr->select( 'user', array( 'user_id', 'user_name', 'user_touched', 'user_registration' ), '', __METHOD__ );
 		if ( $this->hasOption( 'ignore-groups' ) ) {
@@ -69,6 +71,7 @@ class RemoveUnusedAccounts extends Maintenance {
 				) {
 				# Inactive; print out the name and flag it
 				$del[] = $row->user_id;
+				$delLogging[] = $row->user_name;
 				$this->output( $row->user_name . "\n" );
 			}
 		}
@@ -76,6 +79,7 @@ class RemoveUnusedAccounts extends Maintenance {
 		$this->output( "...found {$count}.\n" );
 
 		# If required, go back and delete each marked account
+		$deleteLogs = $this->hasOption( 'delete-logs' );
 		if ( $count > 0 && $this->hasOption( 'delete' ) ) {
 			$this->output( "\nDeleting unused accounts..." );
 			$dbw = wfGetDB( DB_MASTER );
@@ -89,6 +93,11 @@ class RemoveUnusedAccounts extends Maintenance {
 			# Update the site_stats.ss_users field
 			$users = $dbw->selectField( 'user', 'COUNT(*)', array(), __METHOD__ );
 			$dbw->update( 'site_stats', array( 'ss_users' => $users ), array( 'ss_row_id' => 1 ), __METHOD__ );
+			if ( $deleteLogs ) {
+				$this->output( "\nPretending they never existed..." );
+				$dbw->delete( 'logging', array( 'log_title' => $delLogging ), __METHOD__ );
+				$dbw->delete( 'recentchanges', array( 'rc_title' => $delLogging ), __METHOD__ );
+			}
 		} elseif ( $count > 0 ) {
 			$this->output( "\nRun the script again with --delete to remove them from the database.\n" );
 		}
