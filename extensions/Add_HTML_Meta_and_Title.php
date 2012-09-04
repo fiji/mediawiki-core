@@ -81,7 +81,7 @@ if (defined('MEDIAWIKI')) {
 	 * (passed by reference).
 	 * @return String Always empty.
 	 */
-	function renderSEO( $text, $params = array(), &$parser ) {
+	function renderSEO( $text, $params = array(), $parser ) {
 		// Short-circuit with error message if content is not specified.
 		$emt="";
 
