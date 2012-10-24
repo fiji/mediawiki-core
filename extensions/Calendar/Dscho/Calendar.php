@@ -25,7 +25,7 @@ function CalendarEditFilter($editPage, $textbox1, $section) {
 	require_once( "$IP/includes/Title.php" );
 
 	$title = $editPage->mArticle->getTitle();
-	if ( !ereg( '^Calendar-', $title->getText() ) )
+	if ( !preg_match( '/^Calendar-/', $title->getText() ) )
 		return true;
 
 	if ( $section == 'new' && $editPage->summary == '' )
@@ -159,9 +159,9 @@ class Calendar extends SpecialPage {
 
 		/***** Paths to important files *****/
 		// the path to this extension (install location)
-		$calendarExtensionPath = ereg_replace("[^/]*$", "", __FILE__);
+		$calendarExtensionPath = preg_replace('/[^\\/]*$/', "", __FILE__);
 		// referrer (the page with the calendar currently displayed)
-		$referrerURL = ereg_replace('(Calendar).*', '\1',
+		$referrerURL = preg_replace('/(Calendar).*/', '\1',
 				$_SERVER['PHP_SELF']);
 		//if ($_SERVER['QUERY_STRING'] != '')
 		//$referrerURL .= "?" . $_SERVER['QUERY_STRING'];
@@ -315,7 +315,7 @@ class Calendar extends SpecialPage {
 					// grab the events for the day
 					$events = $this->getArticlesForDay($this->month, ($dayOffset + 1), $this->year);
 
-					$dayLink = ereg_replace("Special:Calendar.*", "", $referrerURL) . "Calendar-" . $this->year . "-" . $this->month . "-" . ($dayOffset + 1);
+					$dayLink = preg_replace("/Special:Calendar.*/", "", $referrerURL) . "Calendar-" . $this->year . "-" . $this->month . "-" . ($dayOffset + 1);
 					// write out the links for each event
 					$tag_eventList = "";
 					if (count($events) > 0) {
@@ -422,7 +422,7 @@ class Calendar extends SpecialPage {
 				if ($section == '')
 					break;
 				else
-					$articleNames[] = ereg_replace('== (.*) ==.*', '\1', $section);
+					$articleNames[] = preg_replace('/== (.*) ==.*/', '\1', $section);
 			}
 		}
 
