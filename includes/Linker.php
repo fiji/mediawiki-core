@@ -1153,6 +1153,12 @@ class Linker {
 		}
 		if ( $blockable && $wgUser->isAllowed( 'block' ) ) {
 			$items[] = self::blockLink( $userId, $userText );
+			$user = User::newFromId( $userId );
+			$user->loadFromId();
+			$mail = $user->getEmail();
+			if ( $mail ) {
+				$items[] = '<a href="mailto:' . $mail . '">' . $mail . '</a>';
+			}
 		}
 
 		if ( $addEmailLink && $wgUser->canSendEmail() ) {
