@@ -595,7 +595,12 @@ class ApiQuery extends ApiBase {
 			}
 		}
 
-		$exporter = new WikiExporter( $this->getDB() );
+		if ( isset($this->params['offset']) ) {
+			$history = array( 'offset' => $this->params['offset'], 'dir' => 'asc' );
+		} else {
+			$history = WikiExporter::CURRENT;
+		}
+		$exporter = new WikiExporter( $this->getDB(), $history );
 		// WikiExporter writes to stdout, so catch its
 		// output with an ob
 		ob_start();
@@ -643,6 +648,7 @@ class ApiQuery extends ApiBase {
 			'exportnowrap' => false,
 			'iwurl' => false,
 			'continue' => null,
+			'offset' => null,
 		);
 		if ( $flags ) {
 			$result += $this->getPageSet()->getFinalParams( $flags );
