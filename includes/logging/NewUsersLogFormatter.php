@@ -38,7 +38,21 @@ class NewUsersLogFormatter extends LogFormatter {
 			} else {
 				$target = User::newFromName( $this->entry->getTarget()->getText(), false );
 			}
-			$params[2] = Message::rawParam( $this->makeUserLink( $target ) );
+			global $wgUser;
+			if ( !$wgUser->isAllowed( 'block' ) ) {
+				$params[2] = Message::rawParam( $this->makeUserLink( $target ) );
+			} else {
+				$s = $this->makeUserLink( $target ) . ' (';
+				$authenticated = $target->getEmailAuthenticationTimestamp();
+				if ( $authenticated ) {
+					global $wgLang;
+					$s .= 'authenticated on ' . $wgLang->timeanddate( $authenticated );
+				} else {
+					$s .= 'not yet authenticated';
+				}
+				$s .= ')';
+				$params[2] = Message::rawParam( $s );
+			}
 			$params[3] = $target->getName();
 		}
 
