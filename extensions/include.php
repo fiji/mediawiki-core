@@ -280,7 +280,7 @@ function path_in_allowed_list ($haystack_list, $needle_path)
  * @access public
  * @return string
  */
-function render_include ( $input , $argv, &$parser )
+function render_include ( $input , $argv, $parser )
 {
     global $inline_css, $highlighter_package;
     global $wg_include_allowed_parent_paths, $wg_include_disallowed_regex;

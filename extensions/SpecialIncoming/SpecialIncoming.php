@@ -30,7 +30,7 @@ class SpecialIncoming extends SpecialPage {
 			$incoming .= '/';
 		$this->incoming = $incoming;
 
-		$path = ereg_replace("[^/]*$", "", __FILE__);
+		$path = preg_replace('/[^\/]*$/', '', __FILE__);
 		if ($this->startsWith($path, $_SERVER['DOCUMENT_ROOT']))
 			$this->dirIcon = '<img src="/' . substr($path,
 				strlen($_SERVER['DOCUMENT_ROOT']))
