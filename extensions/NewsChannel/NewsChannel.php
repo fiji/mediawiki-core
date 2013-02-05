@@ -35,6 +35,7 @@ $wgExtensionFunctions[] = 'wfSetupNewsChannelExtension';
 $dir = dirname( __FILE__ ) . '/';
 $wgAutoloadClasses['NewsChannel'] = $dir . 'NewsChannel_body.php';
 $wgExtensionMessagesFiles['NewsChannel'] = $dir . 'NewsChannel.i18n.php';
+$wgExtensionMessagesFiles['NewsChannelAlias'] = $dir . 'NewsChannel.alias.php';
 $wgSpecialPages['NewsChannel'] = 'NewsChannel';
 
 function wfSetupNewsChannelExtension() {
