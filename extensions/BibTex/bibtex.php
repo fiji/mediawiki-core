@@ -19,10 +19,17 @@ function wfBibtexExtension()
      global $wgParser;
      global $wgHooks;
      global $wgMessageCache;
-     global $wbibmsg;
      $wgParser->setHook( "bibtex", "renderBibtex" );
      $wgHooks['ParserAfterStrip'][] = 'bibtexHook';
-     $wgMessageCache->addMessages( $wbibmsg );
+     $wgHooks['MessagesPreLoad'][] = 'wfBibtexMessagesPreLoad';
+}
+
+function wfBibtexMessagesPreLoad( $title, &$text ) {
+     global $wbibmsg;
+     if ( isset( $wbibmsg[$title] ) ) {
+          $text = $wbibmsg[$title];
+     }
+     return true;
 }
 
 // a single bibtex entry excluding string definitions

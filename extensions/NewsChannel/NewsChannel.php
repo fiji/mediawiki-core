@@ -34,16 +34,11 @@ $wgExtensionFunctions[] = 'wfSetupNewsChannelExtension';
 
 $dir = dirname( __FILE__ ) . '/';
 $wgAutoloadClasses['NewsChannel'] = $dir . 'NewsChannel_body.php';
+$wgExtensionMessagesFiles['NewsChannel'] = $dir . 'NewsChannel.i18n.php';
 $wgSpecialPages['NewsChannel'] = 'NewsChannel';
 
 function wfSetupNewsChannelExtension() {
 	global $IP, $wgMessageCache, $wgOut;
-
-	if( !function_exists('efNewsChannelMessages' ) ) {
-		require_once( 'NewsChannel.i18n.php' );
-		foreach( efNewsChannelMessages() as $lang => $messages )
-			$wgMessageCache->addMessages( $messages, $lang );
-	}
 
 	$title = Title::newFromText( 'NewsChannel', NS_SPECIAL );
 	$wgOut->addLink( array(

@@ -31,6 +31,19 @@
 # Confirm MW environment
 if (defined('MEDIAWIKI')) {
 
+	// Messages
+	$wgHooks['MessagesPreLoad'][] = 'wfSEOMessagesPreLoad';
+
+	function wfSEOMessagesPreLoad( $title, &$text ) {
+		if ( $title == 'seo-empty-attr' ) {
+			$text = 'Error: &lt;seo&gt; tag must contain at least '
+				. 'one non-empty &quot;title&quot; or '
+				. '&quot;metak(eywords)&quot; or '
+				. '&quot;metad(escription)&quot; attribute.';
+		}
+		return true;
+	}
+
 	// Credits
 	$wgExtensionCredits['parserhook'][] = array(
 			'name' => 'Add_HTML_Meta_and_Title',
@@ -61,14 +74,6 @@ if (defined('MEDIAWIKI')) {
 		global $wgParser, $wgMessageCache;
 		// meta if empty
 		$wgParser->setHook( 'seo', 'renderSEO' );
-		$wgMessageCache->addMessage(
-				'seo-empty-attr', 
-				'Error: &lt;seo&gt; tag must contain at least '
-				. 'one non-empty &quot;title&quot; or '
-				. '&quot;metak(eywords)&quot; or '
-				. '&quot;metad(escription)&quot; attribute.'
-				);
-
 	}
 
 	/**
@@ -81,7 +86,7 @@ if (defined('MEDIAWIKI')) {
 	 * (passed by reference).
 	 * @return String Always empty.
 	 */
-	function renderSEO( $text, $params = array(), &$parser ) {
+	function renderSEO( $text, $params = array(), $parser ) {
 		// Short-circuit with error message if content is not specified.
 		$emt="";
 
