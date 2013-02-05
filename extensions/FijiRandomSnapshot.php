@@ -35,7 +35,7 @@ function splitProject($project) {
 	if (substr($name, 0, 2) == '* ')
 		$name = substr($name, 2);
 	$project = explode("\n", $project[1], 2);
-	$img = Image::newFromName($project[0])->getViewURL();
+	$img = wfFindFile($project[0])->getViewURL();
 	$description = htmlspecialchars($project[1]);
 	return array($name, $img, $description);
 }
