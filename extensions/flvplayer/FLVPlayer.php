@@ -139,9 +139,10 @@ class FlvPlayer {
 	}
 
 	function getViewPath($file) {
-		$title = Title::makeTitleSafe("Image",$file);
-
-		$img = new Image($title);
+		$title = File::normalizeTitle($file);
+		$img = wfFindFile($title);
+		if ($img == null)
+			return null;
 
 		$path = $img->getViewURL(false);
 
