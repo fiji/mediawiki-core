@@ -58,8 +58,8 @@ function renderSwf( $input, $argv ) {
  
 	// internal media:
 	else {
-                $title = Title::makeTitleSafe("Image",$input);
-                $img = new Image($title);
+                $title = File::normalizeTitle($input);
+                $img = wfFindFile($title);
                 $path = $img->getViewURL(false);
 		if ( ! $path ) return "No path for internal Media:$input";
 		$dir = dirname($_SERVER['SCRIPT_FILENAME']);
