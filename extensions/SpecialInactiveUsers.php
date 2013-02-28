@@ -86,7 +86,7 @@ class InactiveUsersPager extends UsersPager {
 	public function setupOptions() {
 		$this->opts = new FormOptions();
 
-		$this->opts->add( 'hideauthenticated', false, FormOptions::BOOL );
+		$this->opts->add( 'hideauthenticated', true, FormOptions::BOOL );
 		$this->opts->add( 'hidebots', false, FormOptions::BOOL );
 		$this->opts->add( 'hidesysops', false, FormOptions::BOOL );
 		$this->opts->add( 'days', $this->days, FormOptions::INT );
