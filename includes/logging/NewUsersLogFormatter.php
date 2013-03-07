@@ -49,6 +49,13 @@ class NewUsersLogFormatter extends LogFormatter {
 					$s .= 'authenticated on ' . $wgLang->timeanddate( $authenticated );
 				} else {
 					$s .= 'not yet authenticated';
+					$userName = $target->getName();
+					if ( $userName != 'Spam' && $wgUser->isAllowed( 'usermerge' ) ) {
+						global $wgServer, $wgArticlePath;
+						$s .= '; <a href="' . $wgServer .
+							preg_replace( '/\$1/', 'Special:UserMerge', $wgArticlePath ) .
+							'?olduser=' . htmlentities( $userName ) . '&newuser=Spam&deleteuser=true">Merge with <i>Spam</i> account</a>';
+					}
 				}
 				$s .= ')';
 				$params[2] = Message::rawParam( $s );
