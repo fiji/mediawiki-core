@@ -1106,6 +1106,7 @@ class Linker {
 		$items = array();
 		if ( $userId == 0 && preg_match( '/^\d+\.\d+\.\d+\.\d+$/', $userText ) ) {
 			$items[] = Html::rawElement( 'a', array( 'href' => 'http://dnsquery.org/ipwhois/' . $userText ), 'WhoIs' );
+			$items[] = Html::rawElement( 'a', array( 'href' => 'http://dnsquery.org/ip2location/' . $userText ), 'Location' );
 		}
 		if ( $talkable ) {
 			$items[] = self::userTalkLink( $userId, $userText );
