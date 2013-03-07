@@ -48,7 +48,7 @@ class SpecialIncoming extends SpecialPage {
 	function getHTML()
 	{
 		global $wgUser;
-		if ($wgUser->isLoggedIn()) {
+		if ($wgUser->isAllowed( 'incoming' ) ) {
 			return $this->listing();
 		}
 		else {
@@ -62,7 +62,7 @@ class SpecialIncoming extends SpecialPage {
 					array( 'returnto' => $wgTitle->getPrefixedText() ),
 					array( 'known', 'noclasses' )
 					);
-			return 'This page is restricted to registered users only. You need to ' . $loginLink;
+			return 'This page is restricted to users with the <i>incoming</i> right only.';
 		}
 	}
 
