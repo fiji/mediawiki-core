@@ -156,7 +156,15 @@ class InactiveUsersPager extends UsersPager {
 		global $wgLang;
 		$notyetauthenticated = $row->user_email_authenticated ? '' : ' not yet authenticated (registered on ' . $wgLang->timeanddate( $row->user_registration ) . ')';
 
-		return Html::rawElement( 'li', array(), "{$item} {$blocked} {$notyetauthenticated}" );
+		$userMergeLink = '';
+		if ( ! $row->user_email_authenticated && $userName != 'Spam' && $GLOBALS[ 'wgUser' ]->isAllowed( 'usermerge' ) ) {
+			global $wgServer, $wgArticlePath;
+			$userMergeLink = '<a href="' . $wgServer .
+				preg_replace( '/\$1/', 'Special:UserMerge', $wgArticlePath ) .
+				'?olduser=' . htmlentities( $userName ) . '&newuser=Spam&deleteuser=true">Merge with <i>Spam</i> account</a>';
+		}
+
+		return Html::rawElement( 'li', array(), "{$item} {$blocked} {$notyetauthenticated} {$userMergeLink}" );
 	}
 
 	function getPageHeader() {
