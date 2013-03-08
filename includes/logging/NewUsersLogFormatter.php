@@ -33,13 +33,20 @@ class NewUsersLogFormatter extends LogFormatter {
 		$params = parent::getMessageParameters();
 		$subtype = $this->entry->getSubtype();
 		if ( $subtype === 'create2' || $subtype === 'byemail' ) {
+			$userName = $this->entry->getTarget()->getText();
 			if ( isset( $params[3] ) ) {
 				$target = User::newFromId( $params[3] );
+				if ( $target->getId() != 0 ) {
+					$userName = $target->getName();
+				}
 			} else {
-				$target = User::newFromName( $this->entry->getTarget()->getText(), false );
+				$target = User::newFromName( $userName, false );
 			}
 			global $wgUser;
-			if ( !$wgUser->isAllowed( 'block' ) ) {
+			if ( $target->getId() == 0 ) {
+				$userName = $this->entry->getTarget()->getText() . ' (deleted)';
+				$params[2] = Message::rawParam( htmlentities( $userName ) );
+			} elseif ( !$wgUser->isAllowed( 'block' ) ) {
 				$params[2] = Message::rawParam( $this->makeUserLink( $target ) );
 			} else {
 				$s = $this->makeUserLink( $target ) . ' (';
@@ -49,7 +56,6 @@ class NewUsersLogFormatter extends LogFormatter {
 					$s .= 'authenticated on ' . $wgLang->timeanddate( $authenticated );
 				} else {
 					$s .= 'not yet authenticated';
-					$userName = $target->getName();
 					if ( $userName != 'Spam' && $wgUser->isAllowed( 'usermerge' ) ) {
 						global $wgServer, $wgArticlePath;
 						$s .= '; <a href="' . $wgServer .
@@ -60,7 +66,7 @@ class NewUsersLogFormatter extends LogFormatter {
 				$s .= ')';
 				$params[2] = Message::rawParam( $s );
 			}
-			$params[3] = $target->getName();
+			$params[3] = $userName;
 		}
 
 		return $params;
