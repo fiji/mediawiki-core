@@ -55,13 +55,7 @@ class NewUsersLogFormatter extends LogFormatter {
 					global $wgLang;
 					$s .= 'authenticated on ' . $wgLang->timeanddate( $authenticated );
 				} else {
-					$s .= 'not yet authenticated';
-					if ( $userName != 'Spam' && $wgUser->isAllowed( 'usermerge' ) ) {
-						global $wgServer, $wgArticlePath;
-						$s .= '; <a href="' . $wgServer .
-							preg_replace( '/\$1/', 'Special:UserMerge', $wgArticlePath ) .
-							'?olduser=' . htmlentities( $userName ) . '&newuser=Spam&deleteuser=true">Merge with <i>Spam</i> account</a>';
-					}
+					$s .= 'not yet authenticated' . $this->getMergeSpamLink( $userName );
 				}
 				$s .= ')';
 				$params[2] = Message::rawParam( $s );
@@ -71,12 +65,36 @@ class NewUsersLogFormatter extends LogFormatter {
 		return $params;
 	}
 
+	protected function getMergeSpamLink( $userName ) {
+		global $wgUser;
+		if ( $userName == 'Spam' || !$wgUser->isAllowed( 'usermerge' ) ) {
+			return "";
+		}
+		global $wgServer, $wgArticlePath;
+		return '; <a href="' . $wgServer .
+			preg_replace( '/\$1/', 'Special:UserMerge', $wgArticlePath ) .
+			'?olduser=' . htmlentities( $userName ) . '&newuser=Spam&deleteuser=true">Merge with <i>Spam</i> account</a>';
+	}
+
 	public function getComment() {
 		$timestamp = wfTimestamp( TS_MW, $this->entry->getTimestamp() );
 		if ( $timestamp < '20080129000000' ) {
 			# Suppress $comment from old entries (before 2008-01-29),
 			# not needed and can contain incorrect links
 			return '';
+		}
+		global $wgUser;
+		if ( $wgUser->isAllowed( 'block' ) && $this->entry->getSubtype() === 'create' ) {
+			$userName = $this->entry->getTarget()->getText();
+			$target = User::newFromId( $userName );
+			if ( $target->getId() == 0 ) {
+				return $userName . ' (deleted)' . parent::getComment();
+			} else {
+				$authenticated = $target->getEmailAuthenticationTimestamp();
+				if ( !$authenticated ) {
+					return parent::getComment() . $this->getMergeSpamLink( $userName );
+				}
+			}
 		}
 		return parent::getComment();
 	}
