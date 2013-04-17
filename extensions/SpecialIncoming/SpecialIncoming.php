@@ -22,7 +22,7 @@ class SpecialIncoming extends SpecialPage {
 
 	function SpecialIncoming($incoming = "/var/www/uploads/incoming/")
 	{
-		SpecialPage::SpecialPage('Incoming');
+		SpecialPage::SpecialPage('Incoming', 'incoming');
 
 		if ($incoming == '')
 			$incoming = '/invalid/';
