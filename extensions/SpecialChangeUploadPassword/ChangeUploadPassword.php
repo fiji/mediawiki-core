@@ -62,6 +62,16 @@ class SpecialChangeUploadPassword extends SpecialPage {
 				$html .= '<span style="color:red">Failed!</span>';
 			} else {
 				$html .= 'Password changed.';
+				$wgUser->sendMail("fiji.sc upload password changed",
+					"Your fiji.sc upload password was changed. If you did not intend to do this,\n"
+					. "please visit http://fiji.sc/Special:ChangeUploadPassword and change it back.\n"
+					. "\n"
+					. "To upload, change the sshHost of the 'Fiji' update site to\n"
+					.  "\twebdav:" . $wgUser->getName() . "\n"
+					. "in Advanced Mode's 'Manage Update Sites'.\n"
+					. "\n"
+					. "Have fun uploading,\n"
+					. "Yours sincerely, the Fiji Wiki\n");
 			}
 			return $html;
 		}
