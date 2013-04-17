@@ -53,6 +53,9 @@ class SpecialChangeUploadPassword extends SpecialPage {
 			return "Extension not yet configured!";
 		}
 		if (isset($_POST['password'])) {
+			if (!isset($_POST['password2']) || $_POST['password'] !== $_POST['password2']) {
+				return 'Passwords do not match!';
+			}
 			exec("htpasswd -b " . escapeshellarg($wgChangeUploadPasswordFile) . " " . escapeshellarg($wgUser->getName()) . " " . escapeshellarg($_POST['password']), $output, $return);
 			$html = "";
 			foreach ($output as $line) {
@@ -78,8 +81,16 @@ class SpecialChangeUploadPassword extends SpecialPage {
 		return '<h1>Change upload password for ' . $wgUser->getName()
 			. "</h1>\n"
 			. '<form method="POST">'
-			. '<label for="password">Password</label>'
-			. '<input type="password" id="password" name="password" />'
+			. '<table>'
+			. '<tr>'
+			. '<td><label for="password">Password</label></td>'
+			. '<td><input type="password" id="password" name="password" /></td>'
+			. '</tr><tr>'
+			. '<td><label for="password2">Confirm password</label></td>'
+			. '<td><input type="password" id="password2" name="password2" /></td>'
+			. '</tr><tr>'
+			. '<td colspan=2><input type="submit"></td>'
+			. '</table>'
 			. '</form>';
 	}
 
