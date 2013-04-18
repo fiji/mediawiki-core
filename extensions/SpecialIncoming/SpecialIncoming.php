@@ -126,7 +126,7 @@ class SpecialIncoming extends SpecialPage {
 </script>
 ';
 		}
-		$this->getGeoMap();
+		#$this->getGeoMap();
 
 		$dir = isset($_GET['dir']) ? $_GET['dir'] : $this->incoming;
 
