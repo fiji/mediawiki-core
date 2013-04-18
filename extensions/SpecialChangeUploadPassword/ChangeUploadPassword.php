@@ -64,7 +64,8 @@ class SpecialChangeUploadPassword extends SpecialPage {
 			if ($return !== 0) {
 				$html .= '<span style="color:red">Failed!</span>';
 			} else {
-				$html .= 'Password changed.';
+				$html .= '<h2>Password changed.</h2>'
+					. 'To upload, change the sshHost of the "Fiji" update site to: <b>webdav:' . $wgUser->getName() . "</b>\n";
 				$wgUser->sendMail("fiji.sc upload password changed",
 					"Your fiji.sc upload password was changed. If you did not intend to do this,\n"
 					. "please visit http://fiji.sc/Special:ChangeUploadPassword and change it back.\n"
