@@ -20,8 +20,10 @@ class SpecialIncoming extends SpecialPage {
 	var $sortkey;
 	var $geomap;
 
-	function SpecialIncoming($incoming = "/var/www/uploads/incoming/")
+	function SpecialIncoming()
 	{
+		global $wgIncomingDirectory;
+		$incoming = isset($wgIncomingDirectory) ? $wgIncomingDirectory : '/tmp/';
 		SpecialPage::SpecialPage('Incoming', 'incoming');
 
 		if ($incoming == '')
