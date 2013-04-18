@@ -33,13 +33,12 @@ class SpecialIncoming extends SpecialPage {
 		$this->incoming = $incoming;
 
 		$path = preg_replace('/[^\/]*$/', '', __FILE__);
-		if ($this->startsWith($path, $_SERVER['DOCUMENT_ROOT']))
-			$this->dirIcon = '<img src="/' . substr($path,
-				strlen($_SERVER['DOCUMENT_ROOT']))
-				. '/Gnome-document-open.svg" width="16"'
+
+		global $wgScriptPath;
+		$extensionDirectory = $wgScriptPath . '/extensions/SpecialIncoming/';
+		$this->dirIcon = '<img src="' . $extensionDirectory
+				. 'Gnome-document-open.svg" width="16"'
 				. ' alt="DIR"/>';
-		else
-			$this->dirIcon = 'DIR';
 	}
 
 	function getDescription() {
