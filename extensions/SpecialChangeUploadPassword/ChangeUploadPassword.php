@@ -9,6 +9,19 @@ $wgExtensionFunctions[] = "wfSpecialChangeUploadPasswordExtension";
 function wfSpecialChangeUploadPasswordExtension() {
 	global $wgHooks;
 	SpecialPage::addPage(new SpecialChangeUploadPassword());
+	$wgHooks['MessagesPreLoad'][] = 'wfSpecialChangeUploadPasswordMessagesPreLoad';
+}
+
+$wgSpecialChangeUploadPasswordMessages = array(
+	'Right-change-upload-password' => "Can add/change a password for uploading to the Fiji Update Site"
+);
+
+function wfSpecialChangeUploadPasswordMessagesPreLoad( $title, &$text ) {
+     global $wgSpecialChangeUploadPasswordMessages;
+     if ( isset( $wgSpecialChangeUploadPasswordMessages[$title] ) ) {
+          $text = $wgSpecialChangeUploadPasswordMessages[$title];
+     }
+     return true;
 }
 
 require_once("$IP/includes/SpecialPage.php");

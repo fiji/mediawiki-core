@@ -9,6 +9,19 @@ $wgExtensionFunctions[] = "wfSpecialIncomingExtension";
 function wfSpecialIncomingExtension() {
 	global $wgHooks;
 	SpecialPage::addPage(new SpecialIncoming());
+	$wgHooks['MessagesPreLoad'][] = 'wfSpecialIncomingMessagesPreLoad';
+}
+
+$wgSpecialIncomingMessages = array(
+	'Right-incoming' => "Can access files uploaded with Fiji/ImageJ2's <i>Help>Upload Sample Image</i> via Special:Incoming"
+);
+
+function wfSpecialIncomingMessagesPreLoad( $title, &$text ) {
+     global $wgSpecialIncomingMessages;
+     if ( isset( $wgSpecialIncomingMessages[$title] ) ) {
+          $text = $wgSpecialIncomingMessages[$title];
+     }
+     return true;
 }
 
 require_once("$IP/includes/SpecialPage.php");
