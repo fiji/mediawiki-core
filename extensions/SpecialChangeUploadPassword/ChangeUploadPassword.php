@@ -85,7 +85,7 @@ class SpecialChangeUploadPassword extends SpecialPage {
 					return "Nice try!";
 				}
 			} elseif ($_POST['site'] == 'private') {
-				$conf = $_SERVER['DOCUMENT_ROOT'] . '/../conf/';
+				$conf = $_SERVER['DOCUMENT_ROOT'] . '/../../conf/';
 				exec("ssh -F " . escapeshellarg($conf . 'ssh_config')
 					. " -o UserKnownHostsFile=" . escapeshellarg($conf . 'known_hosts')
 					. " sites "
