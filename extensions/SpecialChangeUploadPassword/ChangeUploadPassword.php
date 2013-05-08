@@ -89,7 +89,7 @@ class SpecialChangeUploadPassword extends SpecialPage {
 				exec("ssh -F " . escapeshellarg($conf . 'ssh_config')
 					. " -o UserKnownHostsFile=" . escapeshellarg($conf . 'known_hosts')
 					. " sites "
-					. escapeshellarg($wgUser->getName() . ' ' . $_POST['password']),
+					. escapeshellarg($wgUser->getName() . ' ' . $_POST['password']) . ' 2>&1',
 					$output, $return);
 				$updateSiteHint = "To upload, add a new update site (check 'for upload' before clicking 'Add')\n"
 					. "or change your existing one. You need to set the URL to \n"
