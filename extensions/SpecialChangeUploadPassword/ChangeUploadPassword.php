@@ -30,23 +30,23 @@ class SpecialChangeUploadPassword extends SpecialPage {
 
 	function SpecialChangeUploadPassword()
 	{
-		SpecialPage::SpecialPage('ChangeUploadPassword', 'change-upload-password');
+		SpecialPage::SpecialPage('ChangeUploadPassword');
 	}
 
 	function getDescription() {
-		return "Special:ChangeUploadPassword";
+		return "Initialize or Change Upload Password";
 	}
 
 	// Generate the HTML for a given month
 	function getHTML()
 	{
 		global $wgUser;
-		if ($wgUser->isAllowed( 'change-upload-password' ) ) {
+		if ($wgUser->isEmailConfirmed()) {
 			return $this->showForm();
 		} else {
 			global $wgTitle;
 			$skin = $wgUser->getSkin();
-			$loginTitle = SpecialPage::getTitleFor( 'Userlogin' );
+			$loginTitle = SpecialPage::getTitleFor( 'Userlogin', 'emailconfirmed' );
 			$loginLink = $skin->link(
 					$loginTitle,
 					'log in',
@@ -54,13 +54,15 @@ class SpecialChangeUploadPassword extends SpecialPage {
 					array( 'returnto' => $wgTitle->getPrefixedText() ),
 					array( 'known', 'noclasses' )
 					);
-			return 'This page is restricted to users with the <i>change-upload-password</i> right only.';
+			return 'This page is restricted to <i>authenticated</i> users only.';
 		}
 	}
 
 	function showForm() {
 		global $wgUser, $wgTitle, $wgChangeUploadPasswordFile;
-		$skin = $wgUser->getSkin();
+		if (!$wgUser->isEmailConfirmed()) {
+			return "Internal error 517.";
+		}
 		if (!isset($wgChangeUploadPasswordFile) ||
 				!file_exists($wgChangeUploadPasswordFile)) {
 			return "Extension not yet configured!";
@@ -69,7 +71,35 @@ class SpecialChangeUploadPassword extends SpecialPage {
 			if (!isset($_POST['password2']) || $_POST['password'] !== $_POST['password2']) {
 				return 'Passwords do not match!';
 			}
-			exec("htpasswd -b " . escapeshellarg($wgChangeUploadPasswordFile) . " " . escapeshellarg($wgUser->getName()) . " " . escapeshellarg($_POST['password']), $output, $return);
+			if (!isset($_POST['site'])) return "Nice try.";
+			$updateSiteHint = '';
+			if ($_POST['site'] == 'fiji.sc') {
+				if ($wgUser->isAllowed( 'change-upload-password' ) ) {
+					exec("htpasswd -b " . escapeshellarg($wgChangeUploadPasswordFile)
+						. " " . escapeshellarg($wgUser->getName()) . " "
+						. escapeshellarg($_POST['password']), $output, $return);
+					$updateSiteHint = "To upload, change the sshHost of the 'Fiji' update site to\n"
+						.  "\twebdav:" . $wgUser->getName() . "\n"
+						. "in Advanced Mode's 'Manage Update Sites'.\n";
+				} else {
+					return "Nice try!";
+				}
+			} elseif ($_POST['site'] == 'private') {
+				$conf = $_SERVER['DOCUMENT_ROOT'] . '/../conf/';
+				exec("ssh -F " . escapeshellarg($conf . 'ssh_config')
+					. " -o UserKnownHostsFile=" . escapeshellarg($conf . 'known_hosts')
+					. " sites "
+					. escapeshellarg($wgUser->getName() . ' ' . $_POST['password']),
+					$output, $return);
+				$updateSiteHint = "To upload, add a new update site (check 'for upload' before clicking 'Add')\n"
+					. "or change your existing one. You need to set the URL to \n"
+					. "\thttp://sites.imagej.net/" . $wgUser->getName() . "/\n"
+					. "the sshHost to\n"
+					. "\twebdav:" . $wgUser->getName() . "\n"
+					. "and set the upload directory to '.' in updater's Advanced Mode's 'Manage Update Sites'.\n";
+			} else {
+				return 'Internal error 1337.';
+			}
 			$html = "";
 			foreach ($output as $line) {
 				$html .= htmlentities($line) . "<br />\n";
@@ -78,24 +108,28 @@ class SpecialChangeUploadPassword extends SpecialPage {
 				$html .= '<span style="color:red">Failed!</span>';
 			} else {
 				$html .= '<h2>Password changed.</h2>'
-					. 'To upload, change the sshHost of the "Fiji" update site to: <b>webdav:' . $wgUser->getName() . "</b>\n";
+					. str_replace(array("\n", "\t"), array("<br />\n", "&nbsp;&nbsp;&nbsp;&nbsp;"), htmlentities($updateSiteHint)) . "\n";
 				$wgUser->sendMail("fiji.sc upload password changed",
 					"Your fiji.sc upload password was changed. If you did not intend to do this,\n"
 					. "please visit http://fiji.sc/Special:ChangeUploadPassword and change it back.\n"
-					. "\n"
-					. "To upload, change the sshHost of the 'Fiji' update site to\n"
-					.  "\twebdav:" . $wgUser->getName() . "\n"
-					. "in Advanced Mode's 'Manage Update Sites'.\n"
-					. "\n"
+					. "\n" . $updateSiteHint . "\n"
 					. "Have fun uploading,\n"
 					. "Yours sincerely, the Fiji Wiki\n");
 			}
 			return $html;
 		}
-		return '<h1>Change upload password for ' . $wgUser->getName()
+		$siteChoice = '<input type="hidden" name="site" value="private">';
+		if ( $wgUser->isAllowed( 'change-upload-password' ) ) {
+			$siteChoice = '<tr><td>Update site</td><td>'
+				. '<input type="radio" name="site" value="fiji.sc" checked>Fiji\'s main update site</input><br />'
+				. '<input type="radio" name="site" value="private">Your <a href="http://sites.imagej.net/'
+				. $wgUser->getName() . '/">personal update site</a></input>'
+				. '</td></tr>';
+		}
+		return '<h1>Initialize or change upload password for ' . $wgUser->getName()
 			. "</h1>\n"
 			. '<form method="POST">'
-			. '<table>'
+			. '<table>' . $siteChoice
 			. '<tr>'
 			. '<td><label for="password">Password</label></td>'
 			. '<td><input type="password" id="password" name="password" /></td>'
