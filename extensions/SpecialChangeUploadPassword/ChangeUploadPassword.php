@@ -253,4 +253,129 @@ class ApiChangeUploadPassword extends ApiBase {
 
 }
 
+/**
+ * Create an account on the Fiji Wiki.
+ *
+ * <p>The Fiji Wiki does not follow the MediaWiki release cycle slavishly;
+ * besides, the createaccount API required an alpha-quality MediaWiki version
+ * at the time this class was written.</p>
+ */
+class ApiCreateFijiWikiAccount extends ApiBase {
+	public function execute() {
+		global $wgAuth, $wgNewPasswordExpiry, $wgRequest, $wgScript, $wgServer;
+
+		# Check permissions
+		$currentUser = $this->getUser();
+		if ( !$currentUser->isAllowed( 'createaccount' ) ||
+				$currentUser->isBlockedFromCreateAccount() ||
+				$currentUser->isDnsBlacklisted( $wgRequest->getIP(), true ) ) {
+			$this->dieUsageMsg( 'badaccess-group0' );
+		}
+
+		$headers = apache_request_headers();
+		$params = $this->extractRequestParams();
+		if ( $wgAuth->userExists( $params[ 'name' ] ) ||
+				!Sanitizer::validateEmail( $params[ 'email' ] ) ||
+				!isset( $headers[ 'Requested-User' ] ) ||
+				$headers[ 'Requested-User' ] !== $params[ 'name' ] ) {
+			$this->dieUsageMsg( 'badaccess-group0' );
+		}
+
+		# Now create a dummy user ($u) and check if it is valid
+		$name = trim( $params[ 'name' ] );
+		$u = User::newFromName( $name, 'creatable' );
+		if ( !is_object( $u ) || 0 != $u->idForName() ) {
+			$this->dieUsageMsg( 'badaccess-group0' );
+		}
+
+		# Set some additional data so the AbortNewAccount hook can be used for
+		# more than just username validation
+		$u->setEmail( $params[ 'email' ] );
+		$u->setRealName( $params[ 'realname' ] );
+
+		if( !$wgAuth->addUser( $u, null, $params[ 'email' ], $params[ 'realname' ] ) ) {
+			$this->dieUsageMsg( 'badaccess-group0' );
+		}
+
+		$u->addToDatabase();
+		$u->setToken();
+		$wgAuth->initUser( $u, true );
+		$u->setOption( 'rememberpassword', 0 );
+		$np = $u->randomPassword();
+		$u->setNewpassword( $np, true );
+		$userLanguage = $u->getOption( 'language' );
+		$m = wfMessage( 'passwordremindertext', $wgRequest->getIP(), $u->getName(), $np, $wgServer . $wgScript,
+			round( $wgNewPasswordExpiry / 86400 ) )->inLanguage( $userLanguage )->text();
+		$result = $u->sendMail( wfMessage( 'passwordremindertitle' )->inLanguage( $userLanguage )->text(), $m );
+		$u->saveSettings();
+
+		# Update user count
+		$ssUpdate = new SiteStatsUpdate( 0, 0, 0, 0, 1 );
+		$ssUpdate->doUpdate();
+
+		wfRunHooks( 'AddNewAccount', array( $u, true ) );
+		$u->addNewUserLogEntry( true, $params[ 'reason' ] );
+
+		$this->getResult()->addValue(
+			null,
+			$this->getModuleName(),
+			array( 'created' => $params[ 'name' ] )
+		);
+	}
+
+	public function getAllowedParams() {
+		return array(
+			'name' => array(
+				ApiBase::PARAM_REQUIRED => true,
+				ApiBase::PARAM_TYPE => 'string'
+			),
+			'realname' => array(
+				ApiBase::PARAM_REQUIRED => true,
+				ApiBase::PARAM_TYPE => 'string'
+			),
+			'email' => array(
+				ApiBase::PARAM_REQUIRED => true,
+				ApiBase::PARAM_TYPE => 'string'
+			),
+			'reason' => array(
+				ApiBase::PARAM_REQUIRED => true,
+				ApiBase::PARAM_TYPE => 'string'
+			)
+		);
+	}
+
+	public function getParamDescription() {
+		return array(
+			'name' => "The desired name for the account to be created",
+			'realname' => "The real name of the person behind the account to be created",
+			'email' => "A valid email address to activate the account",
+			'reason' => "A description for the log"
+		);
+	}
+
+	public function getDescription() {
+		return array(
+			'Create an account on the Fiji Wiki'
+		);
+	}
+
+	public function getPossibleErrors() {
+		return array_merge( parent::getPossibleErrors(),
+			array( 'badaccess-group0' )
+		);
+	}
+
+	public function getExamples() {
+		return array(
+			'api.php?action=createfijiwikiaccount&name=honestjohnny&realname=Real+Honest+Johnny&email=johnny@example.com&reason=I+wants+it'
+		);
+	}
+
+	public function getVersion() {
+		return __CLASS__ . ': 1.0';
+	}
+
+}
+
 $wgAPIModules['changeuploadpassword'] = 'ApiChangeUploadPassword';
+$wgAPIModules['createfijiwikiaccount'] = 'ApiCreateFijiWikiAccount';
