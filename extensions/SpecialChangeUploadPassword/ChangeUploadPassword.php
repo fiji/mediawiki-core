@@ -24,6 +24,15 @@ function wfSpecialChangeUploadPasswordMessagesPreLoad( $title, &$text ) {
      return true;
 }
 
+function wfChangePersonalUploadPassword($userName, $password, &$output, &$return) {
+	$conf = $_SERVER['DOCUMENT_ROOT'] . '/../../conf/';
+	exec("ssh -F " . escapeshellarg($conf . 'ssh_config')
+		. " -o UserKnownHostsFile=" . escapeshellarg($conf . 'known_hosts')
+		. " sites "
+		. escapeshellarg($userName . ' ' . $password) . ' 2>&1',
+		$output, $return);
+}
+
 require_once("$IP/includes/SpecialPage.php");
 
 class SpecialChangeUploadPassword extends SpecialPage {
@@ -87,12 +96,7 @@ class SpecialChangeUploadPassword extends SpecialPage {
 					return "Nice try!";
 				}
 			} elseif ($_POST['site'] == 'private') {
-				$conf = $_SERVER['DOCUMENT_ROOT'] . '/../../conf/';
-				exec("ssh -F " . escapeshellarg($conf . 'ssh_config')
-					. " -o UserKnownHostsFile=" . escapeshellarg($conf . 'known_hosts')
-					. " sites "
-					. escapeshellarg($wgUser->getName() . ' ' . $_POST['password']) . ' 2>&1',
-					$output, $return);
+				wfChangePersonalUploadPassword($wgUser->getName(), $_POST['password'], $output, $return);
 				$updateSiteHint = "To upload, add a new update site (check 'for upload' before clicking 'Add')\n"
 					. "or change your existing one. You need to set the URL to \n"
 					. "\thttp://sites.imagej.net/" . $wgUser->getName() . "/\n"
