@@ -193,3 +193,64 @@ class SpecialChangeUploadPassword extends SpecialPage {
 		return '$' . 'apr1' . '$' . $salt . '$' . $tmp;
 	}
 }
+
+class ApiChangeUploadPassword extends ApiBase {
+	public function execute() {
+		$currentUser = $this->getUser();
+		if ( $currentUser->isAnon() ||
+				!$currentUser->isEmailConfirmed() ) {
+			$this->dieUsageMsg( 'badaccess-group0' );
+		}
+		wfChangePersonalUploadPassword($currentUser->getName(), $params[ 'password' ], $output, $return);
+		$this->getResult()->addValue(
+			null,
+			$this->getModuleName(),
+			array( 'result' => $return,
+				'output' => join( "\n", $output ) )
+		);
+	}
+
+	public function isWriteMode() {
+		return true;
+	}
+
+	public function getAllowedParams() {
+		return array(
+			'password' => array(
+				ApiBase::PARAM_REQUIRED => true,
+				ApiBase::PARAM_TYPE => 'string'
+			)
+		);
+	}
+
+	public function getParamDescription() {
+		return array(
+			'password' => "The upload password for the user's personal update site"
+		);
+	}
+
+	public function getDescription() {
+		return array(
+			'Change the password for a personal update site'
+		);
+	}
+
+	public function getPossibleErrors() {
+		return array_merge( parent::getPossibleErrors(),
+			array( 'badaccess-group0' )
+		);
+	}
+
+	public function getExamples() {
+		return array(
+			'api.php?action=changeuploadpassword&password=HeyaVoth'
+		);
+	}
+
+	public function getVersion() {
+		return __CLASS__ . ': 1.0';
+	}
+
+}
+
+$wgAPIModules['changeuploadpassword'] = 'ApiChangeUploadPassword';
