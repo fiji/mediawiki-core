@@ -201,6 +201,7 @@ class ApiChangeUploadPassword extends ApiBase {
 				!$currentUser->isEmailConfirmed() ) {
 			$this->dieUsageMsg( 'badaccess-group0' );
 		}
+		$params = $this->extractRequestParams();
 		wfChangePersonalUploadPassword($currentUser->getName(), $params[ 'password' ], $output, $return);
 		$this->getResult()->addValue(
 			null,
