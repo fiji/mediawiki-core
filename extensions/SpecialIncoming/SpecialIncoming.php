@@ -152,7 +152,7 @@ class SpecialIncoming extends SpecialPage {
 
 		if (is_file($dir)) {
 			/*
-				This does not work with pacific's PHP yet:
+				This did not work with our old server's PHP:
 			$finfo = finfo_open(FILEINFO_MIME_TYPE);
 			$content_type = finfo_file($finfo, $dir);
 			finfo_close($finfo);

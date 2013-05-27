@@ -25,7 +25,7 @@ class NewsChannel extends SpecialPage
 	/** Channel description, preferably just one sentence. */
 	var $channelDescription = 'News about Fiji, the Fatastic ImageJ distribution.'; 
 	/** Link to site. */
-	var $channelSiteLink = 'http://pacific.mpi-cbg.de/';
+	var $channelSiteLink = 'http://fiji.sc/';
 	/** Channel's language code and optional country subcode. */
 	var $channelLanguage = 'en-US';
 	/** Copyright string. */
