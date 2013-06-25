@@ -53,7 +53,12 @@ class SpecialListGroupRights extends SpecialPage {
 		$out->wrapWikiMsg( "<div class=\"mw-listgrouprights-key\">\n$1\n</div>", 'listgrouprights-key' );
 
 		$out->addHTML(
-			Xml::openElement( 'table', array( 'class' => 'wikitable mw-listgrouprights-table' ) ) .
+			Xml::openElement( 'table',
+				array(
+					'class' => 'wikitable mw-listgrouprights-table',
+					'border' => '1',
+					'style' => 'border-collapse: collapse'
+				) ) .
 				'<tr>' .
 				Xml::element( 'th', null, $this->msg( 'listgrouprights-group' )->text() ) .
 				Xml::element( 'th', null, $this->msg( 'listgrouprights-rights' )->text() ) .
