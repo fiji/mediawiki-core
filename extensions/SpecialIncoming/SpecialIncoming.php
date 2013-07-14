@@ -28,6 +28,7 @@ require_once("$IP/includes/SpecialPage.php");
 
 class SpecialIncoming extends SpecialPage {
 	var $incoming;
+	var $promotion, $promotionURL;
 	var $dirIcon;
 	var $ascending;
 	var $sortkey;
@@ -35,8 +36,21 @@ class SpecialIncoming extends SpecialPage {
 
 	function SpecialIncoming()
 	{
-		global $wgIncomingDirectory;
+		global $wgIncomingDirectory, $wgIncomingPromotionDirectory;
 		$incoming = isset($wgIncomingDirectory) ? $wgIncomingDirectory : '/tmp/';
+		$this->promotion = isset($wgIncomingPromotionDirectory) ? $wgIncomingPromotionDirectory : null;
+		if ($this->promotion == null || !$this->startsWith($this->promotion, $_SERVER['DOCUMENT_ROOT'])) {
+			$this->promotionURL = null;
+		} else {
+			$url = $_SERVER['SCRIPT_URI'];
+			$slash = strrpos($url, '/', 10);
+			$this->promotionURL = $slash < 0 ? $url : substr($url, 0, $slash);
+			$this->promotionURL .= substr($this->promotion, strlen($_SERVER['DOCUMENT_ROOT']));
+			if (!$this->endsWith($this->promotionURL, '/')) {
+				$this->promotionURL .= '/';
+			}
+		}
+
 		SpecialPage::SpecialPage('Incoming', 'incoming');
 
 		if ($incoming == '')
@@ -176,6 +190,25 @@ class SpecialIncoming extends SpecialPage {
 			exit;
 		}
 
+		$html = '';
+		if ($this->promotion != null && isset($_GET['promote'])) {
+			$filename = $_GET['promote'];
+			$source = $dir . '/' . $filename;
+			$destination = $this->promotion . '/' . $filename;
+			if (!$this->startsWith($_GET['promote'], '.') &&
+					file_exists($source) &&
+					!file_exists($destination)) {
+				rename($source, $destination);
+			}
+			if ($this->promotionURL != null) {
+				$url = $this->promotionURL . $filename;
+				$html .= '<h1>Promotion successful!</h1>'
+					. 'The file ' . $filename
+					. ' was moved to <a href="'
+					. $url . '">' . $url . '</a>.';
+			}
+		}
+
 		$this->sortkey = isset($_GET['order']) ? $_GET['order'] : 'mtime';
 		$this->ascending = isset($_GET['ascending']) ? $_GET['ascending'] : false;
 
@@ -218,7 +251,7 @@ class SpecialIncoming extends SpecialPage {
 			$ascending = $order != 'mtime';
 			if ($this->sortkey == $order)
 				$ascending = !$this->ascending;
-				
+
 			$list .= "\t\t<th>" . $skin->link(
 				$wgTitle, $key, array(),
 				array('dir' => $dir,
@@ -238,6 +271,23 @@ class SpecialIncoming extends SpecialPage {
 				else
 					$geolink = ' (' . $this->geomap[$key] . ')';
 			}
+			$promote = '';
+			if (!$is_dir && $this->promotion != null) {
+				$destination = $this->promotion . '/' . $key;
+				if (!file_exists($destination))
+					$promote = "\t\t<td>" . $skin->link(
+						$wgTitle,
+						'Promote',
+						array(),
+						array('dir' => $dir,
+							'promote' => $key),
+						array('known', 'noclasses'));
+					if ($this->promotionURL != null) {
+							$url = $this->promotionURL . $key;
+							$promote .= ' to ' . $url;
+					}
+					$promote .= "</td>\n";
+			}
 			$list .= "\t<tr>\n"
 				. "\t\t<td>" . ($is_dir ? $this->dirIcon
 					: '&nbsp;') . "</td>\n"
@@ -253,11 +303,13 @@ class SpecialIncoming extends SpecialPage {
 					: $stat['size']) . "</td>\n"
 				. "\t\t<td>" . gmstrftime("%d.%m.%Y&nbsp;%H:%M:%S",
 					$stat['mtime']) . "</td>\n"
+				. $promote
 				. "\t</tr>\n";
 		}
 		$list .= "</table>\n";
 
-		return '<h1>Incoming/' . substr($dir, strlen($this->incoming))
+		return $html
+			. '<h1>Incoming/' . substr($dir, strlen($this->incoming))
 			. "</h1>\n" . $list;
 	}
 
