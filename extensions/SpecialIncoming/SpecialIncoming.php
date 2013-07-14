@@ -309,8 +309,11 @@ class SpecialIncoming extends SpecialPage {
 		$list .= "</table>\n";
 
 		return $html
-			. '<h1>Incoming/' . substr($dir, strlen($this->incoming))
-			. "</h1>\n" . $list;
+			. '<h1>' . $skin->link(
+				$wgTitle, 'Incoming/', array(), array(),
+				array('known', 'noclasses'))
+			. substr($dir, strlen($this->incoming)) . "</h1>\n"
+			. $list;
 	}
 
 	function cmp($a, $b) {
