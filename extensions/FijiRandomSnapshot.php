@@ -109,6 +109,6 @@ function renderFijiRandomSnapshot( $input, $argv, $parser ) {
 	$array = getFijiRandomSnapshot();
 	if (!isset($array))
 		return '';
-	return '<div class="floatright" style="background:#ffffffff; background-color:#ffffffff; z-index:1;"><span>' . renderProject($parser, $array)
+	return '<div class="floatright" style="background:#ffffffff; background-color:#ffffffff;"><span>' . renderProject($parser, $array)
 		. "</span></div>\n";
 }
