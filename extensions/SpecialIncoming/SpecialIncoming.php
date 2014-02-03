@@ -24,8 +24,6 @@ function wfSpecialIncomingMessagesPreLoad( $title, &$text ) {
      return true;
 }
 
-require_once("$IP/includes/SpecialPage.php");
-
 class SpecialIncoming extends SpecialPage {
 	var $incoming;
 	var $promotion, $promotionURL;

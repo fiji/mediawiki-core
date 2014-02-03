@@ -34,8 +34,6 @@ function wfChangePersonalUploadPassword($userName, $password, &$output, &$return
 		$output, $return);
 }
 
-require_once("$IP/includes/SpecialPage.php");
-
 class SpecialChangeUploadPassword extends SpecialPage {
 
 	function SpecialChangeUploadPassword()

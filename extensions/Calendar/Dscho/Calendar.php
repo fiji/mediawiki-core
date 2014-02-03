@@ -15,7 +15,6 @@ function wfCalendarExtension() {
 $wgLocalPath = str_replace("\\", "/" , substr($_SERVER["SCRIPT_FILENAME"], 0, strlen($_SERVER["SCRIPT_FILENAME"]) - strlen($_SERVER["SCRIPT_NAME"])));
 
 require_once( "$IP/includes/Sanitizer.php" );
-require_once( "$IP/includes/SpecialPage.php" );
 
 function CalendarEditFilter($editPage, $textbox1, $section) {
 	global $IP;
