@@ -27,6 +27,7 @@ function wfSpecialChangeUploadPasswordMessagesPreLoad( $title, &$text ) {
 function wfChangePersonalUploadPassword($userName, $password, &$output, &$return) {
 	$conf = $_SERVER['DOCUMENT_ROOT'] . '/../../conf/';
 	exec("ssh -F " . escapeshellarg($conf . 'ssh_config')
+		. " -o StrictHostKeyChecking=yes"
 		. " -o UserKnownHostsFile=" . escapeshellarg($conf . 'known_hosts')
 		. " sites "
 		. escapeshellarg($userName . ' ' . $password) . ' 2>&1',
