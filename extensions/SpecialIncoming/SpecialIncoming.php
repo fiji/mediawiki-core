@@ -7,8 +7,8 @@ $wgExtensionFunctions[] = "wfSpecialIncomingExtension";
 
 // function adds the wiki extension
 function wfSpecialIncomingExtension() {
-	global $wgHooks;
-	SpecialPage::addPage(new SpecialIncoming());
+	global $wgHooks, $wgSpecialPages;
+	$wgSpecialPages['Incoming'] = 'SpecialIncoming';
 	$wgHooks['MessagesPreLoad'][] = 'wfSpecialIncomingMessagesPreLoad';
 }
 

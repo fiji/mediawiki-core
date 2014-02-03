@@ -7,8 +7,8 @@ $wgExtensionFunctions[] = "wfCalendarExtension";
 
 // function adds the wiki extension
 function wfCalendarExtension() {
-	global $wgHooks;
-	SpecialPage::addPage( new Calendar() );
+	global $wgHooks, $wgSpecialPages;
+	$wgSpecialPages[ 'Calendar' ] = 'Calendar';
 	$wgHooks['EditFilter'][] = "CalendarEditFilter";
 }
 

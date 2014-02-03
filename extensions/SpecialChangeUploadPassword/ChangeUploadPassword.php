@@ -7,8 +7,8 @@ $wgExtensionFunctions[] = "wfSpecialChangeUploadPasswordExtension";
 
 // function adds the wiki extension
 function wfSpecialChangeUploadPasswordExtension() {
-	global $wgHooks;
-	SpecialPage::addPage(new SpecialChangeUploadPassword());
+	global $wgHooks, $wgSpecialPages;
+	$wgSpecialPages['ChangeUploadPassword'] = 'SpecialChangeUploadPassword';
 	$wgHooks['MessagesPreLoad'][] = 'wfSpecialChangeUploadPasswordMessagesPreLoad';
 }
 

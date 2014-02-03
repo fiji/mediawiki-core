@@ -50,7 +50,8 @@ if ( !defined( 'MW_SPECIALPAGE_VERSION' ) ) {
 			}
 			$className = array_shift( $this->params );
 			$obj = extCreateObject( $className, $this->params );
-			SpecialPage::addPage( $obj );
+			global $wgSpecialPages;
+			array_push($wgSpecialPages, $obj);
 		}
 	}
 
