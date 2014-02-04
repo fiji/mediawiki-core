@@ -32,8 +32,10 @@ class SpecialIncoming extends SpecialPage {
 	var $sortkey;
 	var $geomap;
 
-	function SpecialIncoming()
+	function __construct()
 	{
+		parent::__construct('Incoming', 'incoming');
+
 		global $wgIncomingDirectory, $wgIncomingPromotionDirectory;
 		$incoming = isset($wgIncomingDirectory) ? $wgIncomingDirectory : '/tmp/';
 		$this->promotion = isset($wgIncomingPromotionDirectory) ? $wgIncomingPromotionDirectory : null;
@@ -48,8 +50,6 @@ class SpecialIncoming extends SpecialPage {
 				$this->promotionURL .= '/';
 			}
 		}
-
-		SpecialPage::SpecialPage('Incoming', 'incoming');
 
 		if ($incoming == '')
 			$incoming = '/invalid/';

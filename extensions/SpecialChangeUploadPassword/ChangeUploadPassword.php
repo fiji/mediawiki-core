@@ -36,9 +36,9 @@ function wfChangePersonalUploadPassword($userName, $password, &$output, &$return
 
 class SpecialChangeUploadPassword extends SpecialPage {
 
-	function SpecialChangeUploadPassword()
+	function __construct()
 	{
-		SpecialPage::SpecialPage('ChangeUploadPassword');
+		parent::__construct('ChangeUploadPassword');
 	}
 
 	function getDescription() {

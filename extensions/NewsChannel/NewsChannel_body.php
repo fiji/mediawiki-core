@@ -76,7 +76,8 @@ class NewsChannel extends SpecialPage
 	/**
 	 * Constructor is used to initialize class member variables.
 	 */
-	function NewsChannel() {
+	function __construct() {
+		parent::__construct( 'NewsChannel' );
 		global $wgContLang, $wgCanonicalNamespaceNames;
 
 		$this->WikiMediaPresetConfig();
@@ -99,7 +100,6 @@ class NewsChannel extends SpecialPage
 			? $this->channelLanguage
 			: substr($this->channelLanguage, 0, strrpos($this->channelLanguage, '-'));
 
-		SpecialPage::SpecialPage( 'NewsChannel' );
 	}
 
 	/**

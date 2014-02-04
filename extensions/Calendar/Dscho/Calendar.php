@@ -38,9 +38,9 @@ function CalendarEditFilter($editPage, $textbox1, $section) {
 
 // calendar class
 class Calendar extends SpecialPage {   
-	function Calendar()
+	function __construct()
 	{
-		SpecialPage::SpecialPage( 'Calendar' );
+		parent::__construct( 'Calendar' );
 
 		// set the calendar's date
 		$today = getdate();
