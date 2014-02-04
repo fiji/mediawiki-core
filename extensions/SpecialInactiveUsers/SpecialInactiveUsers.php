@@ -23,8 +23,6 @@
  * @ingroup SpecialPage
  */
 
-require_once("$IP/includes/SpecialPage.php");
-
 $wgSpecialPages['InactiveUsers'] = 'SpecialInactiveUsers';
 $wgSpecialPageGroups['InactiveUsers'] = 'users';
 
