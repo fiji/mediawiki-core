@@ -475,3 +475,6 @@
 [submodule "extensions/SemanticForms"]
 	path = extensions/SemanticForms
 	url = https://gerrit.wikimedia.org/r/p/mediawiki/extensions/SemanticForms.git
+[submodule "extensions/EmbedVideo"]
+	path = extensions/EmbedVideo
+	url = git://github.com/Whiteknight/mediawiki-embedvideo.git
