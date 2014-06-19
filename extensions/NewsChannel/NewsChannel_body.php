@@ -94,7 +94,7 @@ class NewsChannel extends SpecialPage
 			$wgCanonicalNamespaceNames[NS_MEDIA];
 
 		$this->channelSiteLink .=
-			( $this->channelSiteLink[ strlen( $this->channelSiteLink ) ] == '/' ) ? '' : '/';
+			( isset( $this->channelSiteLink ) && $this->channelSiteLink[ strlen( $this->channelSiteLink ) ] == '/' ) ? '' : '/';
 
 		$this->shortChannelLanguage = strrpos( $this->channelLanguage, '-' ) === false
 			? $this->channelLanguage
