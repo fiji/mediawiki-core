@@ -367,7 +367,7 @@ class ApiCreateFijiWikiAccount extends ApiBase {
 
 	public function getExamples() {
 		return array(
-			'api.php?action=createfijiwikiaccount&name=honestjohnny&realname=Real+Honest+Johnny&email=johnny@example.com&reason=I+wants+it'
+			'api.php?action=createimagejwikiaccount&name=honestjohnny&realname=Real+Honest+Johnny&email=johnny@example.com&reason=I+wants+it'
 		);
 	}
 
@@ -378,4 +378,5 @@ class ApiCreateFijiWikiAccount extends ApiBase {
 }
 
 $wgAPIModules['changeuploadpassword'] = 'ApiChangeUploadPassword';
+$wgAPIModules['createimagejwikiaccount'] = 'ApiCreateFijiWikiAccount';
 $wgAPIModules['createfijiwikiaccount'] = 'ApiCreateFijiWikiAccount';
