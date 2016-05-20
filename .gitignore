@@ -39,6 +39,10 @@ sftp-config.json
 /AdminSettings.php
 /LocalSettings.php
 /StartProfiler.php
+## Extension:GraphViz
+/images/graphviz
+## Extension:pChart4mw
+/images/pChart4mw
 
 # Building & testing
 node_modules/
@@ -69,13 +73,8 @@ Thumbs.db
 /.htaccess
 /.htpasswd
 
-# fiji.sc
+# imagej.net
+/_images
 /awesome
-/bugzilla/
-/downloads/
-/extensions/
-/javadoc/
-/samples/
 /skins/
-/update/
 /visitors/
