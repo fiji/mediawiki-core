@@ -478,3 +478,30 @@
 [submodule "extensions/EmbedVideo"]
 	path = extensions/EmbedVideo
 	url = git://github.com/Whiteknight/mediawiki-embedvideo.git
+[submodule "extensions/Add_HTML_Meta_and_Title"]
+	path = extensions/Add_HTML_Meta_and_Title
+	url = git://github.com/wikimedia/mediawiki-extensions-AddHTMLMetaAndTitle
+[submodule "extensions/EasyTimeline"]
+	path = extensions/EasyTimeline
+	url = git://github.com/wikimedia/mediawiki-extensions-timeline
+[submodule "extensions/Graph"]
+	path = extensions/Graph
+	url = git://github.com/wikimedia/mediawiki-extensions-Graph
+[submodule "extensions/GraphViz"]
+	path = extensions/GraphViz
+	url = git://github.com/wikimedia/mediawiki-extensions-GraphViz
+[submodule "extensions/JsonConfig"]
+	path = extensions/JsonConfig
+	url = git://github.com/wikimedia/mediawiki-extensions-JsonConfig
+[submodule "extensions/Tabs"]
+	path = extensions/Tabs
+	url = git://github.com/wikimedia/mediawiki-extensions-Tabs
+[submodule "extensions/Topbar"]
+	path = extensions/Topbar
+	url = git://github.com/kkragenbrink/Topbar
+[submodule "extensions/Widgets"]
+	path = extensions/Widgets
+	url = git://github.com/wikimedia/mediawiki-extensions-Widgets
+[submodule "extensions/pChart4mw"]
+	path = extensions/pChart4mw
+	url = git://github.com/Undev/MediaWiki-pChart4mw
