@@ -21,11 +21,11 @@ class NewsChannel extends SpecialPage
 	// Set up general channel info here
 
 	/** Channel title. */
-	var $channelTitle = 'Fiji news';
+	var $channelTitle = 'ImageJ news';
 	/** Channel description, preferably just one sentence. */
-	var $channelDescription = 'News about Fiji, the Fatastic ImageJ distribution.'; 
+	var $channelDescription = 'News about ImageJ.'; 
 	/** Link to site. */
-	var $channelSiteLink = 'http://fiji.sc/';
+	var $channelSiteLink = 'http://imagej.net/';
 	/** Channel's language code and optional country subcode. */
 	var $channelLanguage = 'en-US';
 	/** Copyright string. */
@@ -41,13 +41,13 @@ class NewsChannel extends SpecialPage
 	/** Default number of recent (most fresh) news to list on the channel. */
 	var $channelNewsItems = '10';
 	/** Name or alias of channel's editor-in-chief. */
-	var $channelEditorName = 'Johannes Schindelin';
+	var $channelEditorName = 'Curtis Rueden';
 	/** E-mail of channel's editor-in-chief. */
-	var $channelEditorAddress = 'schindelin@mpi-cbg.de';
+	var $channelEditorAddress = 'imagej-admin@imagej.net';
 	/** Name or alias of channel's webmaster. */
-	var $channelWebMasterName = 'Johannes Schindelin';
+	var $channelWebMasterName = 'Curtis Rueden';
 	/** E-mail of channel's webmaster. */
-	var $channelWebMasterAddress = 'schindelin@mpi-cbg.de';
+	var $channelWebMasterAddress = 'imagej-admin@imagej.net';
 	/** Title of category, containing news articles. */
 	var $newsWikiCategory = 'News';
 	/** Title of category, that must be absolutely excluded from export. */
