@@ -13,7 +13,7 @@ function wfSpecialChangeUploadPasswordExtension() {
 }
 
 $wgSpecialChangeUploadPasswordMessages = array(
-	'Right-change-upload-password' => "Can add/change a password for uploading to the Fiji Update Site"
+	'Right-change-upload-password' => "Can add/change password for uploading to ImageJ update sites"
 );
 
 function wfSpecialChangeUploadPasswordMessagesPreLoad( $title, &$text ) {
@@ -114,19 +114,19 @@ class SpecialChangeUploadPassword extends SpecialPage {
 			} else {
 				$html .= '<h2>Password changed.</h2>'
 					. str_replace(array("\n", "\t"), array("<br />\n", "&nbsp;&nbsp;&nbsp;&nbsp;"), htmlentities($updateSiteHint)) . "\n";
-				$wgUser->sendMail("fiji.sc upload password changed",
-					"Your fiji.sc upload password was changed. If you did not intend to do this,\n"
-					. "please visit http://fiji.sc/Special:ChangeUploadPassword and change it back.\n"
+				$wgUser->sendMail("imagej.net upload password changed",
+					"Your imagej.net upload password was changed. If you did not intend to do this,\n"
+					. "please visit http://imagej.net/Special:ChangeUploadPassword and change it back.\n"
 					. "\n" . $updateSiteHint . "\n"
 					. "Have fun uploading,\n"
-					. "Yours sincerely, the Fiji Wiki\n");
+					. "Yours sincerely, the ImageJ Wiki\n");
 			}
 			return $html;
 		}
 		$siteChoice = '<input type="hidden" name="site" value="private">';
 		if ( $wgUser->isAllowed( 'change-upload-password' ) ) {
 			$siteChoice = '<tr><td>Update site</td><td>'
-				. '<input type="radio" name="site" value="fiji.sc" checked>Fiji\'s main update site</input><br />'
+				. '<input type="radio" name="site" value="fiji.sc" checked>The Fiji update site</input><br />'
 				. '<input type="radio" name="site" value="private">Your <a href="http://sites.imagej.net/'
 				. $wgUser->getName() . '/">personal update site</a></input>'
 				. '</td></tr>';
@@ -254,13 +254,13 @@ class ApiChangeUploadPassword extends ApiBase {
 }
 
 /**
- * Create an account on the Fiji Wiki.
+ * Create an account on the ImageJ Wiki.
  *
- * <p>The Fiji Wiki does not follow the MediaWiki release cycle slavishly;
+ * <p>The ImageJ Wiki does not follow the MediaWiki release cycle slavishly;
  * besides, the createaccount API required an alpha-quality MediaWiki version
  * at the time this class was written.</p>
  */
-class ApiCreateFijiWikiAccount extends ApiBase {
+class ApiCreateImageJWikiAccount extends ApiBase {
 	public function execute() {
 		global $wgAuth, $wgNewPasswordExpiry, $wgRequest, $wgScript, $wgServer;
 
@@ -355,7 +355,7 @@ class ApiCreateFijiWikiAccount extends ApiBase {
 
 	public function getDescription() {
 		return array(
-			'Create an account on the Fiji Wiki'
+			'Create an account on the ImageJ Wiki'
 		);
 	}
 
@@ -378,5 +378,5 @@ class ApiCreateFijiWikiAccount extends ApiBase {
 }
 
 $wgAPIModules['changeuploadpassword'] = 'ApiChangeUploadPassword';
-$wgAPIModules['createimagejwikiaccount'] = 'ApiCreateFijiWikiAccount';
-$wgAPIModules['createfijiwikiaccount'] = 'ApiCreateFijiWikiAccount';
+$wgAPIModules['createimagejwikiaccount'] = 'ApiCreateImageJWikiAccount';
+$wgAPIModules['createfijiwikiaccount'] = 'ApiCreateImageJWikiAccount';
