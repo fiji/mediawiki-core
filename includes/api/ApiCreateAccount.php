@@ -21,17 +21,22 @@
  *
  * @file
  */
+use MediaWiki\Logger\LoggerFactory;
 
 /**
  * Unit to authenticate account registration attempts to the current wiki.
  *
  * @ingroup API
+ * @deprecated since 1.27, only used when $wgDisableAuthManager is true
  */
 class ApiCreateAccount extends ApiBase {
 	public function execute() {
-		// If we're in JSON callback mode, no tokens can be obtained
-		if ( !is_null( $this->getMain()->getRequest()->getVal( 'callback' ) ) ) {
-			$this->dieUsage( 'Cannot create account when using a callback', 'aborted' );
+		// If we're in a mode that breaks the same-origin policy, no tokens can
+		// be obtained
+		if ( $this->lacksSameOriginSecurity() ) {
+			$this->dieUsage(
+				'Cannot create account when the same-origin policy is not applied', 'aborted'
+			);
 		}
 
 		// $loginForm->addNewaccountInternal will throw exceptions
@@ -45,15 +50,18 @@ class ApiCreateAccount extends ApiBase {
 			);
 		}
 		if ( $this->getUser()->isBlockedFromCreateAccount() ) {
-			$this->dieUsage( 'You cannot create a new account because you are blocked', 'blocked' );
+			$this->dieUsage(
+				'You cannot create a new account because you are blocked',
+				'blocked',
+				0,
+				[ 'blockinfo' => ApiQueryUserInfo::getBlockInfo( $this->getUser()->getBlock() ) ]
+			);
 		}
 
 		$params = $this->extractRequestParams();
 
-		// Init session if necessary
-		if ( session_id() == '' ) {
-			wfSetupSession();
-		}
+		// Make sure session is persisted
+		MediaWiki\Session\SessionManager::getGlobalSession()->persist();
 
 		if ( $params['mailpassword'] && !$params['email'] ) {
 			$this->dieUsageMsg( 'noemail' );
@@ -66,7 +74,7 @@ class ApiCreateAccount extends ApiBase {
 		$context = new DerivativeContext( $this->getContext() );
 		$context->setRequest( new DerivativeRequest(
 			$this->getContext()->getRequest(),
-			array(
+			[
 				'type' => 'signup',
 				'uselang' => $params['language'],
 				'wpName' => $params['name'],
@@ -78,19 +86,22 @@ class ApiCreateAccount extends ApiBase {
 				'wpCreateaccountToken' => $params['token'],
 				'wpCreateaccount' => $params['mailpassword'] ? null : '1',
 				'wpCreateaccountMail' => $params['mailpassword'] ? '1' : null
-			)
+			]
 		) );
 
 		$loginForm = new LoginForm();
 		$loginForm->setContext( $context );
-		wfRunHooks( 'AddNewAccountApiForm', array( $this, $loginForm ) );
+		Hooks::run( 'AddNewAccountApiForm', [ $this, $loginForm ] );
 		$loginForm->load();
 
-		$status = $loginForm->addNewaccountInternal();
-		$result = array();
+		$status = $loginForm->addNewAccountInternal();
+		LoggerFactory::getInstance( 'authmanager' )->info( 'Account creation attempt via API', [
+			'event' => 'accountcreation',
+			'status' => $status,
+		] );
+		$result = [];
 		if ( $status->isGood() ) {
 			// Success!
-			global $wgEmailAuthentication;
 			$user = $status->getValue();
 
 			if ( $params['language'] ) {
@@ -106,7 +117,9 @@ class ApiCreateAccount extends ApiBase {
 					'createaccount-title',
 					'createaccount-text'
 				) );
-			} elseif ( $wgEmailAuthentication && Sanitizer::validateEmail( $user->getEmail() ) ) {
+			} elseif ( $this->getConfig()->get( 'EmailAuthentication' ) &&
+				Sanitizer::validateEmail( $user->getEmail() )
+			) {
 				// Send out an email authentication message if needed
 				$status->merge( $user->sendConfirmationMail() );
 			}
@@ -114,7 +127,7 @@ class ApiCreateAccount extends ApiBase {
 			// Save settings (including confirmation token)
 			$user->saveSettings();
 
-			wfRunHooks( 'AddNewAccount', array( $user, $params['mailpassword'] ) );
+			Hooks::run( 'AddNewAccount', [ $user, $params['mailpassword'] ] );
 
 			if ( $params['mailpassword'] ) {
 				$logAction = 'byemail';
@@ -137,37 +150,36 @@ class ApiCreateAccount extends ApiBase {
 			// Token was incorrect, so add it to result, but don't throw an exception
 			// since not having the correct token is part of the normal
 			// flow of events.
-			$result['token'] = LoginForm::getCreateaccountToken();
-			$result['result'] = 'needtoken';
+			$result['token'] = LoginForm::getCreateaccountToken()->toString();
+			$result['result'] = 'NeedToken';
+			$this->setWarning( 'Fetching a token via action=createaccount is deprecated. ' .
+				'Use action=query&meta=tokens&type=createaccount instead.' );
+			$this->logFeatureUsage( 'action=createaccount&!token' );
 		} elseif ( !$status->isOK() ) {
 			// There was an error. Die now.
 			$this->dieStatus( $status );
 		} elseif ( !$status->isGood() ) {
 			// Status is not good, but OK. This means warnings.
-			$result['result'] = 'warning';
+			$result['result'] = 'Warning';
 
 			// Add any warnings to the result
 			$warnings = $status->getErrorsByType( 'warning' );
 			if ( $warnings ) {
 				foreach ( $warnings as &$warning ) {
-					$apiResult->setIndexedTagName( $warning['params'], 'param' );
+					ApiResult::setIndexedTagName( $warning['params'], 'param' );
 				}
-				$apiResult->setIndexedTagName( $warnings, 'warning' );
+				ApiResult::setIndexedTagName( $warnings, 'warning' );
 				$result['warnings'] = $warnings;
 			}
 		} else {
 			// Everything was fine.
-			$result['result'] = 'success';
+			$result['result'] = 'Success';
 		}
 
 		// Give extensions a chance to modify the API result data
-		wfRunHooks( 'AddNewAccountApiResult', array( $this, $loginForm, &$result ) );
+		Hooks::run( 'AddNewAccountApiResult', [ $this, $loginForm, &$result ] );
 
 		$apiResult->addValue( null, 'createaccount', $result );
-	}
-
-	public function getDescription() {
-		return 'Create a new user account.';
 	}
 
 	public function mustBePosted() {
@@ -183,131 +195,41 @@ class ApiCreateAccount extends ApiBase {
 	}
 
 	public function getAllowedParams() {
-		global $wgEmailConfirmToEdit;
-
-		return array(
-			'name' => array(
+		return [
+			'name' => [
 				ApiBase::PARAM_TYPE => 'user',
 				ApiBase::PARAM_REQUIRED => true
-			),
-			'password' => null,
+			],
+			'password' => [
+				ApiBase::PARAM_TYPE => 'password',
+			],
 			'domain' => null,
-			'token' => null,
-			'email' => array(
+			'token' => [
 				ApiBase::PARAM_TYPE => 'string',
-				ApiBase::PARAM_REQUIRED => $wgEmailConfirmToEdit
-			),
+				ApiBase::PARAM_REQUIRED => false, // for BC
+				ApiBase::PARAM_HELP_MSG => [ 'api-help-param-token', 'createaccount' ],
+			],
+			'email' => [
+				ApiBase::PARAM_TYPE => 'string',
+				ApiBase::PARAM_REQUIRED => $this->getConfig()->get( 'EmailConfirmToEdit' ),
+			],
 			'realname' => null,
-			'mailpassword' => array(
+			'mailpassword' => [
 				ApiBase::PARAM_TYPE => 'boolean',
 				ApiBase::PARAM_DFLT => false
-			),
+			],
 			'reason' => null,
 			'language' => null
-		);
+		];
 	}
 
-	public function getParamDescription() {
-		$p = $this->getModulePrefix();
-
-		return array(
-			'name' => 'Username',
-			'password' => "Password (ignored if {$p}mailpassword is set)",
-			'domain' => 'Domain for external authentication (optional)',
-			'token' => 'Account creation token obtained in first request',
-			'email' => 'Email address of user (optional)',
-			'realname' => 'Real name of user (optional)',
-			'mailpassword' => 'If set to any value, a random password will be emailed to the user',
-			'reason' => 'Optional reason for creating the account to be put in the logs',
-			'language'
-				=> 'Language code to set as default for the user (optional, defaults to content language)'
-		);
-	}
-
-	public function getResultProperties() {
-		return array(
-			'createaccount' => array(
-				'result' => array(
-					ApiBase::PROP_TYPE => array(
-						'success',
-						'warning',
-						'needtoken'
-					)
-				),
-				'username' => array(
-					ApiBase::PROP_TYPE => 'string',
-					ApiBase::PROP_NULLABLE => true
-				),
-				'userid' => array(
-					ApiBase::PROP_TYPE => 'int',
-					ApiBase::PROP_NULLABLE => true
-				),
-				'token' => array(
-					ApiBase::PROP_TYPE => 'string',
-					ApiBase::PROP_NULLABLE => true
-				),
-			)
-		);
-	}
-
-	public function getPossibleErrors() {
-		// Note the following errors aren't possible and don't need to be listed:
-		// sessionfailure, nocookiesfornew, badretype
-		$localErrors = array(
-			'wrongpassword', // Actually caused by wrong domain field. Riddle me that...
-			'sorbs_create_account_reason',
-			'noname',
-			'userexists',
-			'password-name-match', // from User::getPasswordValidity
-			'password-login-forbidden', // from User::getPasswordValidity
-			'noemailtitle',
-			'invalidemailaddress',
-			'externaldberror',
-			'acct_creation_throttle_hit',
-		);
-
-		$errors = parent::getPossibleErrors();
-		// All local errors are from LoginForm, which means they're actually message keys.
-		foreach ( $localErrors as $error ) {
-			$errors[] = array(
-				'code' => $error,
-				'info' => wfMessage( $error )->inLanguage( 'en' )->useDatabase( false )->parse()
-			);
-		}
-
-		$errors[] = array(
-			'code' => 'permdenied-createaccount',
-			'info' => 'You do not have the right to create a new account'
-		);
-		$errors[] = array(
-			'code' => 'blocked',
-			'info' => 'You cannot create a new account because you are blocked'
-		);
-		$errors[] = array(
-			'code' => 'aborted',
-			'info' => 'Account creation aborted by hook (info may vary)'
-		);
-		$errors[] = array(
-			'code' => 'langinvalid',
-			'info' => 'Invalid language parameter'
-		);
-
-		// 'passwordtooshort' has parameters. :(
-		global $wgMinimalPasswordLength;
-		$errors[] = array(
-			'code' => 'passwordtooshort',
-			'info' => wfMessage( 'passwordtooshort', $wgMinimalPasswordLength )
-				->inLanguage( 'en' )->useDatabase( false )->parse()
-		);
-
-		return $errors;
-	}
-
-	public function getExamples() {
-		return array(
-			'api.php?action=createaccount&name=testuser&password=test123',
-			'api.php?action=createaccount&name=testmailuser&mailpassword=true&reason=MyReason',
-		);
+	protected function getExamplesMessages() {
+		return [
+			'action=createaccount&name=testuser&password=test123'
+				=> 'apihelp-createaccount-example-pass',
+			'action=createaccount&name=testmailuser&mailpassword=true&reason=MyReason'
+				=> 'apihelp-createaccount-example-mail',
+		];
 	}
 
 	public function getHelpUrls() {

@@ -11,9 +11,9 @@ class HTMLSelectField extends HTMLFormField {
 			return $p;
 		}
 
-		$validOptions = HTMLFormField::flattenOptions( $this->mParams['options'] );
+		$validOptions = HTMLFormField::flattenOptions( $this->getOptions() );
 
-		if ( in_array( $value, $validOptions ) ) {
+		if ( in_array( strval( $value ), $validOptions, true ) ) {
 			return true;
 		} else {
 			return $this->msg( 'htmlform-select-badoption' )->parse();
@@ -23,30 +23,46 @@ class HTMLSelectField extends HTMLFormField {
 	function getInputHTML( $value ) {
 		$select = new XmlSelect( $this->mName, $this->mID, strval( $value ) );
 
-		# If one of the options' 'name' is int(0), it is automatically selected.
-		# because PHP sucks and thinks int(0) == 'some string'.
-		# Working around this by forcing all of them to strings.
-		foreach ( $this->mParams['options'] as &$opt ) {
-			if ( is_int( $opt ) ) {
-				$opt = strval( $opt );
-			}
-		}
-		unset( $opt ); # PHP keeps $opt around as a reference, which is a bit scary
-
 		if ( !empty( $this->mParams['disabled'] ) ) {
 			$select->setAttribute( 'disabled', 'disabled' );
 		}
 
-		if ( isset( $this->mParams['tabindex'] ) ) {
-			$select->setAttribute( 'tabindex', $this->mParams['tabindex'] );
+		$allowedParams = [ 'tabindex', 'size' ];
+		$customParams = $this->getAttributes( $allowedParams );
+		foreach ( $customParams as $name => $value ) {
+			$select->setAttribute( $name, $value );
 		}
 
 		if ( $this->mClass !== '' ) {
 			$select->setAttribute( 'class', $this->mClass );
 		}
 
-		$select->addOptions( $this->mParams['options'] );
+		$select->addOptions( $this->getOptions() );
 
 		return $select->getHTML();
+	}
+
+	function getInputOOUI( $value ) {
+		$disabled = false;
+		$allowedParams = [ 'tabindex' ];
+		$attribs = OOUI\Element::configFromHtmlAttributes(
+			$this->getAttributes( $allowedParams )
+		);
+
+		if ( $this->mClass !== '' ) {
+			$attribs['classes'] = [ $this->mClass ];
+		}
+
+		if ( !empty( $this->mParams['disabled'] ) ) {
+			$disabled = true;
+		}
+
+		return new OOUI\DropdownInputWidget( [
+			'name' => $this->mName,
+			'id' => $this->mID,
+			'options' => $this->getOptionsOOUI(),
+			'value' => strval( $value ),
+			'disabled' => $disabled,
+		] + $attribs );
 	}
 }

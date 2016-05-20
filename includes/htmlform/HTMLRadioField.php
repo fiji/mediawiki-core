@@ -15,9 +15,9 @@ class HTMLRadioField extends HTMLFormField {
 			return false;
 		}
 
-		$validOptions = HTMLFormField::flattenOptions( $this->mParams['options'] );
+		$validOptions = HTMLFormField::flattenOptions( $this->getOptions() );
 
-		if ( in_array( $value, $validOptions ) ) {
+		if ( in_array( strval( $value ), $validOptions, true ) ) {
 			return true;
 		} else {
 			return $this->msg( 'htmlform-select-badoption' )->parse();
@@ -28,34 +28,55 @@ class HTMLRadioField extends HTMLFormField {
 	 * This returns a block of all the radio options, in one cell.
 	 * @see includes/HTMLFormField#getInputHTML()
 	 *
-	 * @param $value String
+	 * @param string $value
 	 *
-	 * @return String
+	 * @return string
 	 */
 	function getInputHTML( $value ) {
-		$html = $this->formatOptions( $this->mParams['options'], $value );
+		$html = $this->formatOptions( $this->getOptions(), strval( $value ) );
 
 		return $html;
+	}
+
+	function getInputOOUI( $value ) {
+		$options = [];
+		foreach ( $this->getOptions() as $label => $data ) {
+			$options[] = [
+				'data' => $data,
+				'label' => $this->mOptionsLabelsNotFromMessage ? new OOUI\HtmlSnippet( $label ) : $label,
+			];
+		}
+
+		return new OOUI\RadioSelectInputWidget( [
+			'name' => $this->mName,
+			'id' => $this->mID,
+			'value' => $value,
+			'options' => $options,
+			'classes' => 'mw-htmlform-flatlist-item',
+		] + OOUI\Element::configFromHtmlAttributes(
+			$this->getAttributes( [ 'disabled', 'tabindex' ] )
+		) );
 	}
 
 	function formatOptions( $options, $value ) {
 		$html = '';
 
-		$attribs = $this->getAttributes( array( 'disabled', 'tabindex' ) );
+		$attribs = $this->getAttributes( [ 'disabled', 'tabindex' ] );
+		$elementFunc = [ 'Html', $this->mOptionsLabelsNotFromMessage ? 'rawElement' : 'element' ];
 
 		# @todo Should this produce an unordered list perhaps?
 		foreach ( $options as $label => $info ) {
 			if ( is_array( $info ) ) {
-				$html .= Html::rawElement( 'h1', array(), $label ) . "\n";
+				$html .= Html::rawElement( 'h1', [], $label ) . "\n";
 				$html .= $this->formatOptions( $info, $value );
 			} else {
 				$id = Sanitizer::escapeId( $this->mID . "-$info" );
-				$radio = Xml::radio( $this->mName, $info, $info == $value, $attribs + array( 'id' => $id ) );
-				$radio .= '&#160;' . Html::rawElement( 'label', array( 'for' => $id ), $label );
+				$radio = Xml::radio( $this->mName, $info, $info === $value, $attribs + [ 'id' => $id ] );
+				$radio .= '&#160;' . call_user_func( $elementFunc, 'label', [ 'for' => $id ], $label );
 
 				$html .= ' ' . Html::rawElement(
 					'div',
-					array( 'class' => 'mw-htmlform-flatlist-item' ),
+					[ 'class' => 'mw-htmlform-flatlist-item mw-ui-radio' ],
 					$radio
 				);
 			}

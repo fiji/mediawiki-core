@@ -35,6 +35,13 @@ class MockImageHandler {
 	 * a thumbnail at all. That is merely returning a ThumbnailImage that
 	 * will be consumed by the unit test.  There is no need to create a real
 	 * thumbnail on the filesystem.
+	 * @param ImageHandler $that
+	 * @param File $image
+	 * @param string $dstPath
+	 * @param string $dstUrl
+	 * @param array $params
+	 * @param int $flags
+	 * @return ThumbnailImage
 	 */
 	static function doFakeTransform( $that, $image, $dstPath, $dstUrl, $params, $flags = 0 ) {
 		# Example of what we receive:
@@ -45,7 +52,7 @@ class MockImageHandler {
 
 		$that->normaliseParams( $image, $params );
 
-		$scalerParams = array(
+		$scalerParams = [
 			# The size to which the image will be resized
 			'physicalWidth' => $params['physicalWidth'],
 			'physicalHeight' => $params['physicalHeight'],
@@ -62,7 +69,7 @@ class MockImageHandler {
 			'mimeType' => $image->getMimeType(),
 			'dstPath' => $dstPath,
 			'dstUrl' => $dstUrl,
-		);
+		];
 
 		# In some cases, we do not bother generating a thumbnail.
 		if ( !$image->mustRender() &&

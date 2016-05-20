@@ -37,22 +37,27 @@
  * @since 1.23
  */
 class SpecialDiff extends RedirectSpecialPage {
-	function __construct() {
+	public function __construct() {
 		parent::__construct( 'Diff' );
-		$this->mAllowedRedirectParams = array();
+		$this->mAllowedRedirectParams = [];
 	}
 
-	function getRedirect( $subpage ) {
+	/**
+	 * @param string|null $subpage
+	 * @return Title|bool
+	 */
+	public function getRedirect( $subpage ) {
 		$parts = explode( '/', $subpage );
 
 		// Try to parse the values given, generating somewhat pretty URLs if possible
-		if ( count( $parts ) === 1 ) {
+		if ( count( $parts ) === 1 && $parts[0] !== '' ) {
 			$this->mAddedRedirectParams['diff'] = $parts[0];
 		} elseif ( count( $parts ) === 2 ) {
 			$this->mAddedRedirectParams['oldid'] = $parts[0];
 			$this->mAddedRedirectParams['diff'] = $parts[1];
 		} else {
 			// Wrong number of parameters, bail out
+			$this->addHelpLink( 'Help:Diff' );
 			throw new ErrorPageError( 'nopagetitle', 'nopagetext' );
 		}
 

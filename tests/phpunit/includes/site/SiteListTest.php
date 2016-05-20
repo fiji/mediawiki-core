@@ -26,7 +26,6 @@
  *
  * @group Site
  *
- * @licence GNU GPL v2+
  * @author Jeroen De Dauw < jeroendedauw@gmail.com >
  */
 class SiteListTest extends MediaWikiTestCase {
@@ -38,7 +37,7 @@ class SiteListTest extends MediaWikiTestCase {
 	public function siteListProvider() {
 		$sitesArrays = $this->siteArrayProvider();
 
-		$listInstances = array();
+		$listInstances = [];
 
 		foreach ( $sitesArrays as $sitesArray ) {
 			$listInstances[] = new SiteList( $sitesArray[0] );
@@ -54,13 +53,13 @@ class SiteListTest extends MediaWikiTestCase {
 	public function siteArrayProvider() {
 		$sites = TestSites::getSites();
 
-		$siteArrays = array();
+		$siteArrays = [];
 
 		$siteArrays[] = $sites;
 
-		$siteArrays[] = array( array_shift( $sites ) );
+		$siteArrays[] = [ array_shift( $sites ) ];
 
-		$siteArrays[] = array( array_shift( $sites ), array_shift( $sites ) );
+		$siteArrays[] = [ array_shift( $sites ), array_shift( $sites ) ];
 
 		return $this->arrayWrap( $siteArrays );
 	}
@@ -80,16 +79,14 @@ class SiteListTest extends MediaWikiTestCase {
 	 * @covers SiteList::getSite
 	 */
 	public function testGetSiteByGlobalId( SiteList $sites ) {
-		if ( $sites->isEmpty() ) {
-			$this->assertTrue( true );
-		} else {
-			/**
-			 * @var Site $site
-			 */
-			foreach ( $sites as $site ) {
-				$this->assertEquals( $site, $sites->getSite( $site->getGlobalId() ) );
-			}
+		/**
+		 * @var Site $site
+		 */
+		foreach ( $sites as $site ) {
+			$this->assertEquals( $site, $sites->getSite( $site->getGlobalId() ) );
 		}
+
+		$this->assertTrue( true );
 	}
 
 	/**
@@ -104,6 +101,25 @@ class SiteListTest extends MediaWikiTestCase {
 		foreach ( $sites as $site ) {
 			if ( is_integer( $site->getInternalId() ) ) {
 				$this->assertEquals( $site, $sites->getSiteByInternalId( $site->getInternalId() ) );
+			}
+		}
+
+		$this->assertTrue( true );
+	}
+
+	/**
+	 * @dataProvider siteListProvider
+	 * @param SiteList $sites
+	 * @covers SiteList::getSiteByNavigationId
+	 */
+	public function testGetSiteByNavigationId( $sites ) {
+		/**
+		 * @var Site $site
+		 */
+		foreach ( $sites as $site ) {
+			$ids = $site->getNavigationIds();
+			foreach ( $ids as $navId ) {
+				$this->assertEquals( $site, $sites->getSiteByNavigationId( $navId ) );
 			}
 		}
 
@@ -150,6 +166,25 @@ class SiteListTest extends MediaWikiTestCase {
 	/**
 	 * @dataProvider siteListProvider
 	 * @param SiteList $sites
+	 * @covers SiteList::hasNavigationId
+	 */
+	public function testHasNavigationId( $sites ) {
+		/**
+		 * @var Site $site
+		 */
+		foreach ( $sites as $site ) {
+			$ids = $site->getNavigationIds();
+			foreach ( $ids as $navId ) {
+				$this->assertTrue( $sites->hasNavigationId( $navId ) );
+			}
+		}
+
+		$this->assertFalse( $sites->hasNavigationId( 'non-existing-navigation-id' ) );
+	}
+
+	/**
+	 * @dataProvider siteListProvider
+	 * @param SiteList $sites
 	 * @covers SiteList::getGlobalIdentifiers
 	 */
 	public function testGetGlobalIdentifiers( SiteList $sites ) {
@@ -157,7 +192,7 @@ class SiteListTest extends MediaWikiTestCase {
 
 		$this->assertTrue( is_array( $identifiers ) );
 
-		$expected = array();
+		$expected = [];
 
 		/**
 		 * @var Site $site
@@ -181,7 +216,7 @@ class SiteListTest extends MediaWikiTestCase {
 	public function testSerialization( SiteList $list ) {
 		$serialization = serialize( $list );
 		/**
-		 * @var SiteArray $copy
+		 * @var SiteList $copy
 		 */
 		$copy = unserialize( $serialization );
 
@@ -192,6 +227,13 @@ class SiteListTest extends MediaWikiTestCase {
 		 */
 		foreach ( $list as $site ) {
 			$this->assertTrue( $copy->hasInternalId( $site->getInternalId() ) );
+
+			foreach ( $site->getNavigationIds() as $navId ) {
+				$this->assertTrue(
+					$copy->hasNavigationId( $navId ),
+					'unserialized data expects nav id ' . $navId . ' for site ' . $site->getGlobalId()
+				);
+			}
 		}
 	}
 }

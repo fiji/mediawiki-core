@@ -1,7 +1,8 @@
 <?php
 
 /**
- * @todo covers tags
+ * @group Media
+ * @covers XMPReader
  */
 class XMPTest extends MediaWikiTestCase {
 
@@ -13,9 +14,9 @@ class XMPTest extends MediaWikiTestCase {
 	/**
 	 * Put XMP in, compare what comes out...
 	 *
-	 * @param $xmp String the actual xml data.
-	 * @param $expected Array expected result of parsing the xmp.
-	 * @param $info String Short sentence on what's being tested.
+	 * @param string $xmp The actual xml data.
+	 * @param array $expected Expected result of parsing the xmp.
+	 * @param string $info Short sentence on what's being tested.
 	 *
 	 * @throws Exception
 	 * @dataProvider provideXMPParse
@@ -33,33 +34,35 @@ class XMPTest extends MediaWikiTestCase {
 
 	public static function provideXMPParse() {
 		$xmpPath = __DIR__ . '/../../data/xmp/';
-		$data = array();
+		$data = [];
 
 		// $xmpFiles format: array of arrays with first arg file base name,
 		// with the actual file having .xmp on the end for the xmp
 		// and .result.php on the end for a php file containing the result
 		// array. Second argument is some info on what's being tested.
-		$xmpFiles = array(
-			array( '1', 'parseType=Resource test' ),
-			array( '2', 'Structure with mixed attribute and element props' ),
-			array( '3', 'Extra qualifiers (that should be ignored)' ),
-			array( '3-invalid', 'Test ignoring qualifiers that look like normal props' ),
-			array( '4', 'Flash as qualifier' ),
-			array( '5', 'Flash as qualifier 2' ),
-			array( '6', 'Multiple rdf:Description' ),
-			array( '7', 'Generic test of several property types' ),
-			array( 'flash', 'Test of Flash property' ),
-			array( 'invalid-child-not-struct', 'Test child props not in struct or ignored' ),
-			array( 'no-recognized-props', 'Test namespace and no recognized props' ),
-			array( 'no-namespace', 'Test non-namespaced attributes are ignored' ),
-			array( 'bag-for-seq', "Allow bag's instead of seq's. (bug 27105)" ),
-			array( 'utf16BE', 'UTF-16BE encoding' ),
-			array( 'utf16LE', 'UTF-16LE encoding' ),
-			array( 'utf32BE', 'UTF-32BE encoding' ),
-			array( 'utf32LE', 'UTF-32LE encoding' ),
-			array( 'xmpExt', 'Extended XMP missing second part' ),
-			array( 'gps', 'Handling of exif GPS parameters in XMP' ),
-		);
+		$xmpFiles = [
+			[ '1', 'parseType=Resource test' ],
+			[ '2', 'Structure with mixed attribute and element props' ],
+			[ '3', 'Extra qualifiers (that should be ignored)' ],
+			[ '3-invalid', 'Test ignoring qualifiers that look like normal props' ],
+			[ '4', 'Flash as qualifier' ],
+			[ '5', 'Flash as qualifier 2' ],
+			[ '6', 'Multiple rdf:Description' ],
+			[ '7', 'Generic test of several property types' ],
+			[ 'flash', 'Test of Flash property' ],
+			[ 'invalid-child-not-struct', 'Test child props not in struct or ignored' ],
+			[ 'no-recognized-props', 'Test namespace and no recognized props' ],
+			[ 'no-namespace', 'Test non-namespaced attributes are ignored' ],
+			[ 'bag-for-seq', "Allow bag's instead of seq's. (bug 27105)" ],
+			[ 'utf16BE', 'UTF-16BE encoding' ],
+			[ 'utf16LE', 'UTF-16LE encoding' ],
+			[ 'utf32BE', 'UTF-32BE encoding' ],
+			[ 'utf32LE', 'UTF-32LE encoding' ],
+			[ 'xmpExt', 'Extended XMP missing second part' ],
+			[ 'gps', 'Handling of exif GPS parameters in XMP' ],
+		];
+
+		$xmpFiles[] = [ 'doctype-included', 'XMP includes doctype' ];
 
 		foreach ( $xmpFiles as $file ) {
 			$xmp = file_get_contents( $xmpPath . $file[0] . '.xmp' );
@@ -68,7 +71,7 @@ class XMPTest extends MediaWikiTestCase {
 			// file.
 			$result = null;
 			include $xmpPath . $file[0] . '.result.php';
-			$data[] = array( $xmp, $result, '[' . $file[0] . '.xmp] ' . $file[1] );
+			$data[] = [ $xmp, $result, '[' . $file[0] . '.xmp] ' . $file[1] ];
 		}
 
 		return $data;
@@ -97,13 +100,13 @@ class XMPTest extends MediaWikiTestCase {
 		$reader->parseExtended( $extendedPacket );
 		$actual = $reader->getResults();
 
-		$expected = array(
-			'xmp-exif' => array(
+		$expected = [
+			'xmp-exif' => [
 				'DigitalZoomRatio' => '0/10',
 				'Flash' => 9,
 				'FNumber' => '2/10',
-			)
-		);
+			]
+		];
 
 		$this->assertEquals( $expected, $actual );
 	}
@@ -129,12 +132,12 @@ class XMPTest extends MediaWikiTestCase {
 		$reader->parseExtended( $extendedPacket );
 		$actual = $reader->getResults();
 
-		$expected = array(
-			'xmp-exif' => array(
+		$expected = [
+			'xmp-exif' => [
 				'DigitalZoomRatio' => '0/10',
 				'Flash' => 9,
-			)
-		);
+			]
+		];
 
 		$this->assertEquals( $expected, $actual );
 	}
@@ -160,13 +163,61 @@ class XMPTest extends MediaWikiTestCase {
 		$reader->parseExtended( $extendedPacket );
 		$actual = $reader->getResults();
 
-		$expected = array(
-			'xmp-exif' => array(
+		$expected = [
+			'xmp-exif' => [
 				'DigitalZoomRatio' => '0/10',
 				'Flash' => 9,
-			)
-		);
+			]
+		];
 
 		$this->assertEquals( $expected, $actual );
+	}
+
+	/**
+	 * Test for multi-section, hostile XML
+	 * @covers XMPReader::checkParseSafety
+	 */
+	public function testCheckParseSafety() {
+
+		// Test for detection
+		$xmpPath = __DIR__ . '/../../data/xmp/';
+		$file = fopen( $xmpPath . 'doctype-included.xmp', 'rb' );
+		$valid = false;
+		$reader = new XMPReader();
+		do {
+			$chunk = fread( $file, 10 );
+			$valid = $reader->parse( $chunk, feof( $file ) );
+		} while ( !feof( $file ) );
+		$this->assertFalse( $valid, 'Check that doctype is detected in fragmented XML' );
+		$this->assertEquals(
+			[],
+			$reader->getResults(),
+			'Check that doctype is detected in fragmented XML'
+		);
+		fclose( $file );
+		unset( $reader );
+
+		// Test for false positives
+		$file = fopen( $xmpPath . 'doctype-not-included.xmp', 'rb' );
+		$valid = false;
+		$reader = new XMPReader();
+		do {
+			$chunk = fread( $file, 10 );
+			$valid = $reader->parse( $chunk, feof( $file ) );
+		} while ( !feof( $file ) );
+		$this->assertTrue(
+			$valid,
+			'Check for false-positive detecting doctype in fragmented XML'
+		);
+		$this->assertEquals(
+			[
+				'xmp-exif' => [
+					'DigitalZoomRatio' => '0/10',
+					'Flash' => '9'
+				]
+			],
+			$reader->getResults(),
+			'Check that doctype is detected in fragmented XML'
+		);
 	}
 }

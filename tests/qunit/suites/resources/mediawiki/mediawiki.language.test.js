@@ -8,13 +8,39 @@
 		},
 		teardown: function () {
 			mw.language.data.values = this.liveLangData;
+		},
+		messages: {
+			// mw.language.listToText test
+			and: ' and',
+			'comma-separator': ', ',
+			'word-separator': ' '
 		}
 	} ) );
 
-	QUnit.test( 'mw.language getData and setData', 2, function ( assert ) {
+	QUnit.test( 'mw.language getData and setData', 3, function ( assert ) {
 		mw.language.setData( 'en', 'testkey', 'testvalue' );
 		assert.equal( mw.language.getData( 'en', 'testkey' ), 'testvalue', 'Getter setter test for mw.language' );
 		assert.equal( mw.language.getData( 'en', 'invalidkey' ), undefined, 'Getter setter test for mw.language with invalid key' );
+		mw.language.setData( 'en-us', 'testkey', 'testvalue' );
+		assert.equal( mw.language.getData( 'en-US', 'testkey' ), 'testvalue', 'Case insensitive test for mw.language' );
+	} );
+
+	QUnit.test( 'mw.language.commafy test', 9, function ( assert ) {
+		mw.language.setData( 'en', 'digitGroupingPattern', null );
+		mw.language.setData( 'en', 'digitTransformTable', null );
+		mw.language.setData( 'en', 'separatorTransformTable', null );
+
+		mw.config.set( 'wgUserLanguage', 'en' );
+		// Number grouping patterns are as per http://cldr.unicode.org/translation/number-patterns
+		assert.equal( mw.language.commafy( 1234.567, '###0.#####' ), '1234.567', 'Pattern with no digit grouping separator defined' );
+		assert.equal( mw.language.commafy( 123456789.567, '###0.#####' ), '123456789.567', 'Pattern with no digit grouping separator defined, bigger decimal part' );
+		assert.equal( mw.language.commafy( 0.567, '###0.#####' ), '0.567', 'Decimal part 0' );
+		assert.equal( mw.language.commafy( '.567', '###0.#####' ), '0.567', 'Decimal part missing. replace with zero' );
+		assert.equal( mw.language.commafy( 1234, '##,#0.#####' ), '12,34', 'Pattern with no fractional part' );
+		assert.equal( mw.language.commafy( -1234.567, '###0.#####' ), '-1234.567', 'Negative number' );
+		assert.equal( mw.language.commafy( -1234.567, '#,###.00' ), '-1,234.56', 'Fractional part bigger than pattern.' );
+		assert.equal( mw.language.commafy( 123456789.567, '###,##0.00' ), '123,456,789.56', 'Decimal part as group of 3' );
+		assert.equal( mw.language.commafy( 123456789.567, '###,###,#0.00' ), '1,234,567,89.56', 'Decimal part as group of 3 and last one 2' );
 	} );
 
 	function grammarTest( langCode, test ) {
@@ -25,9 +51,9 @@
 
 			for ( var i = 0; i < test.length; i++ ) {
 				assert.equal(
-					mw.language.convertGrammar( test[i].word, test[i].grammarForm ),
-					test[i].expected,
-					test[i].description
+					mw.language.convertGrammar( test[ i ].word, test[ i ].grammarForm ),
+					test[ i ].expected,
+					test[ i ].description
 				);
 			}
 		} );
@@ -73,7 +99,7 @@
 				word: 'Wikipedia',
 				grammarForm: 'תחילית',
 				expected: '־Wikipedia',
-				description: 'GAdd a hyphen (maqaf) before non-Hebrew letters'
+				description: 'Add a hyphen (maqaf) before non-Hebrew letters'
 			},
 			{
 				word: '1995',
@@ -259,6 +285,18 @@
 				description: 'Grammar test for prepositional case, доводы -> доводах'
 			},
 			{
+				word: 'Викисклад',
+				grammarForm: 'prepositional',
+				expected: 'Викискладе',
+				description: 'Grammar test for prepositional case, Викисклад -> Викискладе'
+			},
+			{
+				word: 'Викисклад',
+				grammarForm: 'genitive',
+				expected: 'Викисклада',
+				description: 'Grammar test for genitive case, Викисклад -> Викисклада'
+			},
+			{
 				word: 'песчаник',
 				grammarForm: 'prepositional',
 				expected: 'песчанике',
@@ -269,6 +307,84 @@
 				grammarForm: 'prepositional',
 				expected: 'данных',
 				description: 'Grammar test for prepositional case, данные -> данных'
+			},
+			{
+				word: 'русский',
+				grammarForm: 'languagegen',
+				expected: 'русского',
+				description: 'Grammar test for languagegen case, русский -> русского'
+			},
+			{
+				word: 'немецкий',
+				grammarForm: 'languagegen',
+				expected: 'немецкого',
+				description: 'Grammar test for languagegen case, немецкий -> немецкого'
+			},
+			{
+				word: 'иврит',
+				grammarForm: 'languagegen',
+				expected: 'иврита',
+				description: 'Grammar test for languagegen case, иврит -> иврита'
+			},
+			{
+				word: 'эсперанто',
+				grammarForm: 'languagegen',
+				expected: 'эсперанто',
+				description: 'Grammar test for languagegen case, эсперанто -> эсперанто'
+			},
+			{
+				word: 'русский',
+				grammarForm: 'languageprep',
+				expected: 'русском',
+				description: 'Grammar test for languageprep case, русский -> русском'
+			},
+			{
+				word: 'немецкий',
+				grammarForm: 'languageprep',
+				expected: 'немецком',
+				description: 'Grammar test for languageprep case, немецкий -> немецком'
+			},
+			{
+				word: 'идиш',
+				grammarForm: 'languageprep',
+				expected: 'идише',
+				description: 'Grammar test for languageprep case, идиш -> идише'
+			},
+			{
+				word: 'эсперанто',
+				grammarForm: 'languageprep',
+				expected: 'эсперанто',
+				description: 'Grammar test for languageprep case, эсперанто -> эсперанто'
+			},
+			{
+				word: 'русский',
+				grammarForm: 'languageadverb',
+				expected: 'по-русски',
+				description: 'Grammar test for languageadverb case, русский -> по-русски'
+			},
+			{
+				word: 'немецкий',
+				grammarForm: 'languageadverb',
+				expected: 'по-немецки',
+				description: 'Grammar test for languageadverb case, немецкий -> по-немецки'
+			},
+			{
+				word: 'иврит',
+				grammarForm: 'languageadverb',
+				expected: 'на иврите',
+				description: 'Grammar test for languageadverb case, иврит -> на иврите'
+			},
+			{
+				word: 'эсперанто',
+				grammarForm: 'languageadverb',
+				expected: 'на эсперанто',
+				description: 'Grammar test for languageadverb case, эсперанто -> на эсперанто'
+			},
+			{
+				word: 'гуарани',
+				grammarForm: 'languageadverb',
+				expected: 'на языке гуарани',
+				description: 'Grammar test for languageadverb case, гуарани -> на языке гуарани'
 			}
 		],
 
@@ -316,39 +432,27 @@
 
 		uk: [
 			{
-				word: 'тесть',
-				grammarForm: 'genitive',
-				expected: 'тестя',
-				description: 'Grammar test for genitive case'
-			},
-			{
 				word: 'Вікіпедія',
 				grammarForm: 'genitive',
 				expected: 'Вікіпедії',
 				description: 'Grammar test for genitive case'
 			},
 			{
-				word: 'установка',
+				word: 'Віківиди',
 				grammarForm: 'genitive',
-				expected: 'установки',
+				expected: 'Віківидів',
 				description: 'Grammar test for genitive case'
 			},
 			{
-				word: 'похоти',
+				word: 'Вікіцитати',
 				grammarForm: 'genitive',
-				expected: 'похотей',
+				expected: 'Вікіцитат',
 				description: 'Grammar test for genitive case'
 			},
 			{
-				word: 'доводы',
+				word: 'Вікіпідручник',
 				grammarForm: 'genitive',
-				expected: 'доводов',
-				description: 'Grammar test for genitive case'
-			},
-			{
-				word: 'песчаник',
-				grammarForm: 'genitive',
-				expected: 'песчаника',
+				expected: 'Вікіпідручника',
 				description: 'Grammar test for genitive case'
 			},
 			{
@@ -439,5 +543,12 @@
 		if ( langCode === mw.config.get( 'wgUserLanguage' ) ) {
 			grammarTest( langCode, test );
 		}
+	} );
+
+	QUnit.test( 'List to text test', 4, function ( assert ) {
+		assert.equal( mw.language.listToText( [] ), '', 'Blank list' );
+		assert.equal( mw.language.listToText( [ 'a' ] ), 'a', 'Single item' );
+		assert.equal( mw.language.listToText( [ 'a', 'b' ] ), 'a and b', 'Two items' );
+		assert.equal( mw.language.listToText( [ 'a', 'b', 'c' ] ), 'a, b and c', 'More than two items' );
 	} );
 }( mediaWiki, jQuery ) );

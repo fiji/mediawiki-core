@@ -21,6 +21,8 @@
  * @ingroup FileRepo
  */
 
+use MediaWiki\Logger\LoggerFactory;
+
 /**
  * A foreign repository with a remote MediaWiki with an API thingy
  *
@@ -29,7 +31,7 @@
  * $wgForeignFileRepos[] = array(
  *   'class'                  => 'ForeignAPIRepo',
  *   'name'                   => 'shared',
- *   'apibase'                => 'http://en.wikipedia.org/w/api.php',
+ *   'apibase'                => 'https://en.wikipedia.org/w/api.php',
  *   'fetchDescription'       => true, // Optional
  *   'descriptionCacheExpiry' => 3600,
  * );
@@ -46,33 +48,32 @@ class ForeignAPIRepo extends FileRepo {
 	 * List of iiprop values for the thumbnail fetch queries.
 	 * @since 1.23
 	 */
-	protected static $imageInfoProps = array(
+	protected static $imageInfoProps = [
 		'url',
-		'thumbnail',
 		'timestamp',
-	);
+	];
 
-	protected $fileFactory = array( 'ForeignAPIFile', 'newFromTitle' );
-	/** @var int Check back with Commons after a day (24*60*60) */
-	protected $apiThumbCacheExpiry = 86400;
+	protected $fileFactory = [ 'ForeignAPIFile', 'newFromTitle' ];
+	/** @var int Check back with Commons after this expiry */
+	protected $apiThumbCacheExpiry = 86400; // 1 day (24*3600)
 
-	/** @var int Redownload thumbnail files after a month (86400*30) */
-	protected $fileCacheExpiry = 2592000;
+	/** @var int Redownload thumbnail files after this expiry */
+	protected $fileCacheExpiry = 2592000; // 1 month (30*24*3600)
 
-	/** @var array  */
-	protected $mFileExists = array();
+	/** @var array */
+	protected $mFileExists = [];
 
-	/** @var array  */
-	private $mQueryCache = array();
+	/** @var array */
+	private $mQueryCache = [];
 
 	/**
-	 * @param $info array|null
+	 * @param array|null $info
 	 */
 	function __construct( $info ) {
 		global $wgLocalFileRepo;
 		parent::__construct( $info );
 
-		// http://commons.wikimedia.org/w/api.php
+		// https://commons.wikimedia.org/w/api.php
 		$this->mApiBase = isset( $info['apibase'] ) ? $info['apibase'] : null;
 
 		if ( isset( $info['apiThumbCacheExpiry'] ) ) {
@@ -123,7 +124,7 @@ class ForeignAPIRepo extends FileRepo {
 	 * @return array
 	 */
 	function fileExistsBatch( array $files ) {
-		$results = array();
+		$results = [];
 		foreach ( $files as $k => $f ) {
 			if ( isset( $this->mFileExists[$f] ) ) {
 				$results[$k] = $this->mFileExists[$f];
@@ -141,9 +142,9 @@ class ForeignAPIRepo extends FileRepo {
 			}
 		}
 
-		$data = $this->fetchImageQuery( array(
+		$data = $this->fetchImageQuery( [
 			'titles' => implode( $files, '|' ),
-			'prop' => 'imageinfo' )
+			'prop' => 'imageinfo' ]
 		);
 
 		if ( isset( $data['query']['pages'] ) ) {
@@ -189,11 +190,11 @@ class ForeignAPIRepo extends FileRepo {
 		global $wgLanguageCode;
 
 		$query = array_merge( $query,
-			array(
+			[
 				'format' => 'json',
 				'action' => 'query',
 				'redirects' => 'true'
-			) );
+			] );
 
 		if ( !isset( $query['uselang'] ) ) { // uselang is unset or null
 			$query['uselang'] = $wgLanguageCode;
@@ -216,7 +217,11 @@ class ForeignAPIRepo extends FileRepo {
 		if ( $data && isset( $data['query']['pages'] ) ) {
 			foreach ( $data['query']['pages'] as $info ) {
 				if ( isset( $info['imageinfo'][0] ) ) {
-					return $info['imageinfo'][0];
+					$return = $info['imageinfo'][0];
+					if ( isset( $info['pageid'] ) ) {
+						$return['pageid'] = $info['pageid'];
+					}
+					return $return;
 				}
 			}
 		}
@@ -229,12 +234,12 @@ class ForeignAPIRepo extends FileRepo {
 	 * @return array
 	 */
 	function findBySha1( $hash ) {
-		$results = $this->fetchImageQuery( array(
+		$results = $this->fetchImageQuery( [
 			'aisha1base36' => $hash,
 			'aiprop' => ForeignAPIFile::getProps(),
 			'list' => 'allimages',
-		) );
-		$ret = array();
+		] );
+		$ret = [];
 		if ( isset( $results['query']['allimages'] ) ) {
 			foreach ( $results['query']['allimages'] as $img ) {
 				// 1.14 was broken, doesn't return name attribute
@@ -252,18 +257,19 @@ class ForeignAPIRepo extends FileRepo {
 	 * @param string $name
 	 * @param int $width
 	 * @param int $height
-	 * @param null $result
+	 * @param array $result Out parameter that will be changed by the function.
 	 * @param string $otherParams
+	 *
 	 * @return bool
 	 */
 	function getThumbUrl( $name, $width = -1, $height = -1, &$result = null, $otherParams = '' ) {
-		$data = $this->fetchImageQuery( array(
+		$data = $this->fetchImageQuery( [
 			'titles' => 'File:' . $name,
 			'iiprop' => self::getIIProps(),
 			'iiurlwidth' => $width,
 			'iiurlheight' => $height,
 			'iiurlparam' => $otherParams,
-			'prop' => 'imageinfo' ) );
+			'prop' => 'imageinfo' ] );
 		$info = $this->getImageInfo( $data );
 
 		if ( $data && $info && isset( $info['thumburl'] ) ) {
@@ -286,7 +292,7 @@ class ForeignAPIRepo extends FileRepo {
 	 * @since 1.22
 	 */
 	function getThumbError( $name, $width = -1, $height = -1, $otherParams = '', $lang = null ) {
-		$data = $this->fetchImageQuery( array(
+		$data = $this->fetchImageQuery( [
 			'titles' => 'File:' . $name,
 			'iiprop' => self::getIIProps(),
 			'iiurlwidth' => $width,
@@ -294,7 +300,7 @@ class ForeignAPIRepo extends FileRepo {
 			'iiurlparam' => $otherParams,
 			'prop' => 'imageinfo',
 			'uselang' => $lang,
-		) );
+		] );
 		$info = $this->getImageInfo( $data );
 
 		if ( $data && $info && isset( $info['thumberror'] ) ) {
@@ -318,7 +324,7 @@ class ForeignAPIRepo extends FileRepo {
 	 * If the url has been requested today, get it from cache
 	 * Otherwise retrieve remote thumb url, check for local file.
 	 *
-	 * @param string $name is a dbkey form of a title
+	 * @param string $name Is a dbkey form of a title
 	 * @param int $width
 	 * @param int $height
 	 * @param string $params Other rendering parameters (page number, etc)
@@ -326,7 +332,7 @@ class ForeignAPIRepo extends FileRepo {
 	 * @return bool|string
 	 */
 	function getThumbUrlFromCache( $name, $width, $height, $params = "" ) {
-		global $wgMemc;
+		$cache = ObjectCache::getMainWANInstance();
 		// We can't check the local cache using FileRepo functions because
 		// we override fileExistsBatch(). We have to use the FileBackend directly.
 		$backend = $this->getBackend(); // convenience
@@ -339,10 +345,10 @@ class ForeignAPIRepo extends FileRepo {
 		$sizekey = "$width:$height:$params";
 
 		/* Get the array of urls that we already know */
-		$knownThumbUrls = $wgMemc->get( $key );
+		$knownThumbUrls = $cache->get( $key );
 		if ( !$knownThumbUrls ) {
 			/* No knownThumbUrls for this file */
-			$knownThumbUrls = array();
+			$knownThumbUrls = [];
 		} else {
 			if ( isset( $knownThumbUrls[$sizekey] ) ) {
 				wfDebug( __METHOD__ . ': Got thumburl from local cache: ' .
@@ -374,18 +380,18 @@ class ForeignAPIRepo extends FileRepo {
 		$localUrl = $this->getZoneUrl( 'thumb' ) . "/" . $this->getHashPath( $name ) .
 			rawurlencode( $name ) . "/" . rawurlencode( $fileName );
 
-		if ( $backend->fileExists( array( 'src' => $localFilename ) )
+		if ( $backend->fileExists( [ 'src' => $localFilename ] )
 			&& isset( $metadata['timestamp'] )
 		) {
 			wfDebug( __METHOD__ . " Thumbnail was already downloaded before\n" );
-			$modified = $backend->getFileTimestamp( array( 'src' => $localFilename ) );
+			$modified = $backend->getFileTimestamp( [ 'src' => $localFilename ] );
 			$remoteModified = strtotime( $metadata['timestamp'] );
 			$current = time();
 			$diff = abs( $modified - $current );
 			if ( $remoteModified < $modified && $diff < $this->fileCacheExpiry ) {
 				/* Use our current and already downloaded thumbnail */
 				$knownThumbUrls[$sizekey] = $localUrl;
-				$wgMemc->set( $key, $knownThumbUrls, $this->apiThumbCacheExpiry );
+				$cache->set( $key, $knownThumbUrls, $this->apiThumbCacheExpiry );
 
 				return $localUrl;
 			}
@@ -399,15 +405,15 @@ class ForeignAPIRepo extends FileRepo {
 		}
 
 		# @todo FIXME: Delete old thumbs that aren't being used. Maintenance script?
-		$backend->prepare( array( 'dir' => dirname( $localFilename ) ) );
-		$params = array( 'dst' => $localFilename, 'content' => $thumb );
+		$backend->prepare( [ 'dir' => dirname( $localFilename ) ] );
+		$params = [ 'dst' => $localFilename, 'content' => $thumb ];
 		if ( !$backend->quickCreate( $params )->isOK() ) {
 			wfDebug( __METHOD__ . " could not write to thumb path '$localFilename'\n" );
 
 			return $foreignUrl;
 		}
 		$knownThumbUrls[$sizekey] = $localUrl;
-		$wgMemc->set( $key, $knownThumbUrls, $this->apiThumbCacheExpiry );
+		$cache->set( $key, $knownThumbUrls, $this->apiThumbCacheExpiry );
 		wfDebug( __METHOD__ . " got local thumb $localUrl, saving to cache \n" );
 
 		return $localUrl;
@@ -417,7 +423,7 @@ class ForeignAPIRepo extends FileRepo {
 	 * @see FileRepo::getZoneUrl()
 	 * @param string $zone
 	 * @param string|null $ext Optional file extension
-	 * @return String
+	 * @return string
 	 */
 	function getZoneUrl( $zone, $ext = null ) {
 		switch ( $zone ) {
@@ -436,7 +442,7 @@ class ForeignAPIRepo extends FileRepo {
 	 * @return bool|null|string
 	 */
 	function getZonePath( $zone ) {
-		$supported = array( 'public', 'thumb' );
+		$supported = [ 'public', 'thumb' ];
 		if ( in_array( $zone, $supported ) ) {
 			return parent::getZonePath( $zone );
 		}
@@ -470,12 +476,12 @@ class ForeignAPIRepo extends FileRepo {
 		$info = parent::getInfo();
 		$info['apiurl'] = $this->getApiUrl();
 
-		$query = array(
+		$query = [
 			'format' => 'json',
 			'action' => 'query',
 			'meta' => 'siteinfo',
 			'siprop' => 'general',
-		);
+		];
 
 		$data = $this->httpGetCached( 'SiteInfo', $query, 7200 );
 
@@ -485,6 +491,10 @@ class ForeignAPIRepo extends FileRepo {
 
 			$info['articlepath'] = $general['articlepath'];
 			$info['server'] = $general['server'];
+
+			if ( isset( $general['favicon'] ) ) {
+				$info['favicon'] = $general['favicon'];
+			}
 		}
 
 		return $info;
@@ -492,13 +502,13 @@ class ForeignAPIRepo extends FileRepo {
 
 	/**
 	 * Like a Http:get request, but with custom User-Agent.
-	 * @see Http:get
+	 * @see Http::get
 	 * @param string $url
 	 * @param string $timeout
 	 * @param array $options
-	 * @return bool|String
+	 * @return bool|string
 	 */
-	public static function httpGet( $url, $timeout = 'default', $options = array() ) {
+	public static function httpGet( $url, $timeout = 'default', $options = [] ) {
 		$options['timeout'] = $timeout;
 		/* Http::get */
 		$url = wfExpandUrl( $url, PROTO_HTTP );
@@ -509,13 +519,18 @@ class ForeignAPIRepo extends FileRepo {
 			$options['timeout'] = 'default';
 		}
 
-		$req = MWHttpRequest::factory( $url, $options );
+		$req = MWHttpRequest::factory( $url, $options, __METHOD__ );
 		$req->setUserAgent( ForeignAPIRepo::getUserAgent() );
 		$status = $req->execute();
 
 		if ( $status->isOK() ) {
 			return $req->getContent();
 		} else {
+			$logger = LoggerFactory::getInstance( 'http' );
+			$logger->warning(
+				$status->getWikiText( false, false, 'en' ),
+				[ 'caller' => 'ForeignAPIRepo::httpGet' ]
+			);
 			return false;
 		}
 	}
@@ -525,7 +540,7 @@ class ForeignAPIRepo extends FileRepo {
 	 * @since 1.23
 	 */
 	protected static function getIIProps() {
-		return join( '|', self::$imageInfoProps );
+		return implode( '|', self::$imageInfoProps );
 	}
 
 	/**
@@ -543,24 +558,21 @@ class ForeignAPIRepo extends FileRepo {
 		}
 
 		if ( !isset( $this->mQueryCache[$url] ) ) {
-			global $wgMemc;
-
-			$key = $this->getLocalCacheKey( get_class( $this ), $target, md5( $url ) );
-			$data = $wgMemc->get( $key );
+			$data = ObjectCache::getMainWANInstance()->getWithSetCallback(
+				$this->getLocalCacheKey( get_class( $this ), $target, md5( $url ) ),
+				$cacheTTL,
+				function () use ( $url ) {
+					return ForeignAPIRepo::httpGet( $url );
+				}
+			);
 
 			if ( !$data ) {
-				$data = self::httpGet( $url );
-
-				if ( !$data ) {
-					return null;
-				}
-
-				$wgMemc->set( $key, $data, $cacheTTL );
+				return null;
 			}
 
 			if ( count( $this->mQueryCache ) > 100 ) {
 				// Keep the cache from growing infinitely
-				$this->mQueryCache = array();
+				$this->mQueryCache = [];
 			}
 
 			$this->mQueryCache[$url] = $data;
@@ -570,7 +582,7 @@ class ForeignAPIRepo extends FileRepo {
 	}
 
 	/**
-	 * @param array|string $callback
+	 * @param callable $callback
 	 * @throws MWException
 	 */
 	function enumFiles( $callback ) {

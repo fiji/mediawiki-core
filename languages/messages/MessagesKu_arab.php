@@ -1,23 +1,24 @@
 <?php
-/** ‫كوردي (عەرەبی)‬ (‫كوردي (عەرەبی)‬)
+/** كوردي (عەرەبی)‏ (كوردي (عەرەبی)‏)
  *
- * See MessagesQqq.php for message documentation incl. usage of parameters
- * To improve a translation please visit http://translatewiki.net
+ * To improve a translation please visit https://translatewiki.net
  *
  * @ingroup Language
  * @file
  *
  * @author Arastein
  * @author Asoxor
+ * @author Bonevarluri
  * @author George Animal
  * @author Marmzok
+ * @author Muhammed taha
  */
 
 $fallback = 'ckb';
 
 $rtl = true;
 
-$digitTransformTable = array(
+$digitTransformTable = [
 	'0' => '٠', # &#x0660;
 	'1' => '١', # &#x0661;
 	'2' => '٢', # &#x0662;
@@ -30,23 +31,5 @@ $digitTransformTable = array(
 	'9' => '٩', # &#x0669;
 	'.' => '٫', # &#x066b; wrong table ?
 	',' => '٬', # &#x066c;
-);
+];
 
-$messages = array(
-'underline-never' => 'Qet na',
-
-# Dates
-'january' => 'کانوونی دووەم',
-
-# Categories related messages
-'hidden-category-category' => 'هاوپۆلە شاردراوەکان',
-
-'talkpagelinktext' => 'لێدوان',
-
-# All link text and link target definitions of links into project namespace that get used by other message strings, with the exception of user group pages (see grouppage) and the disambiguation template definition (see disambiguations).
-'aboutsite' => 'دەربارەی {{SITENAME}}',
-'mainpage'  => 'دەستپێک',
-
-'red-link-title' => '$1 (پەڕە بوونی نییە)',
-
-);

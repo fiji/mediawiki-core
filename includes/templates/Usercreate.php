@@ -1,4 +1,5 @@
 <?php
+// @codingStandardsIgnoreFile
 /**
  * Html form for account creation (since 1.22 with VForm appearance).
  *
@@ -19,27 +20,26 @@
  *
  * @file
  * @ingroup Templates
+ * @deprecated Will be removed when AuthManager lands.
+ *   The signup form will be generated via HTMLForm.
  */
 
 class UsercreateTemplate extends BaseTemplate {
-
 	/**
 	 * Extensions (AntiSpoof and TitleBlacklist) call this in response to
 	 * UserCreateForm hook to add checkboxes to the create account form.
 	 */
 	function addInputItem( $name, $value, $type, $msg, $helptext = false ) {
-		$this->data['extraInput'][] = array(
+		$this->data['extraInput'][] = [
 			'name' => $name,
 			'value' => $value,
 			'type' => $type,
 			'msg' => $msg,
 			'helptext' => $helptext,
-		);
+		];
 	}
 
 	function execute() {
-		global $wgCookieExpiration;
-		$expirationDays = ceil( $wgCookieExpiration / ( 3600 * 24 ) );
 ?>
 <div class="mw-ui-container">
 	<?php if ( $this->haveData( 'languages' ) ) { ?>
@@ -51,70 +51,79 @@ class UsercreateTemplate extends BaseTemplate {
 		<div id="signupstart"><?php $this->msgWiki( 'signupstart' ); ?></div>
 	<?php } ?>
 	<div id="userloginForm">
-		<h2 class="createaccount-join">
-			<?php $this->msg( $this->data['loggedin'] ? 'createacct-another-join' : 'createacct-join' ); ?>
-		</h2>
 		<form name="userlogin2" id="userlogin2" class="mw-ui-vform" method="post" action="<?php $this->text( 'action' ); ?>">
 			<section class="mw-form-header">
-				<?php $this->html( 'header' ); /* extensions such as ConfirmEdit add form HTML here */ ?>
+				<?php $this->html( 'header' ); ?>
 			</section>
+			<!-- This element is used by the mediawiki.special.userlogin.signup.js module. -->
+			<div
+				id="mw-createacct-status-area"
+				<?php if ( $this->data['message'] ) { ?>
+					class="<?php echo $this->data['messagetype']; ?>box"
+				<?php } else { ?>
+					style="display: none;"
+				<?php } ?>
+			>
 			<?php if ( $this->data['message'] ) { ?>
-				<div class="<?php $this->text( 'messagetype' ); ?>box">
 					<?php if ( $this->data['messagetype'] == 'error' ) { ?>
 						<strong><?php $this->msg( 'createacct-error' ); ?></strong>
 						<br />
 					<?php } ?>
 					<?php $this->html( 'message' ); ?>
+			<?php } ?>
+			</div>
+
+			<?php if ( $this->data['formheader'] ) { ?>
+				<div class="mw-form-formheader">
+					<?php $this->html( 'formheader' ); /* extensions such as MobileFrontend add html here */ ?>
 				</div>
 			<?php } ?>
 
-			<div>
+			<div class="mw-ui-vform-field">
 				<label for='wpName2'>
 					<?php $this->msg( 'userlogin-yourname' ); ?>
 
 					<span class="mw-ui-flush-right"><?php echo $this->getMsg( 'createacct-helpusername' )->parse(); ?></span>
 				</label>
 				<?php
-				echo Html::input( 'wpName', $this->data['name'], 'text', array(
-					'class' => 'mw-input loginText',
+				echo Html::input( 'wpName', $this->data['name'], 'text', [
+					'class' => 'mw-ui-input loginText',
 					'id' => 'wpName2',
 					'tabindex' => '1',
 					'size' => '20',
 					'required',
 					'placeholder' => $this->getMsg( $this->data['loggedin'] ?
 						'createacct-another-username-ph' : 'userlogin-yourname-ph' )->text(),
-				) );
+				] );
 				?>
 			</div>
 
-<input name="wpCreateaccountMail" type="hidden" value'"1" />
-<?php if (false) { ?>
-			<div>
+			<div class="mw-ui-vform-field">
 				<?php if ( $this->data['createemail'] ) { ?>
-					<label class="mw-ui-checkbox-label">
+					<div class="mw-ui-checkbox">
 						<input name="wpCreateaccountMail" type="checkbox" value="1" id="wpCreateaccountMail" tabindex="2"
 							<?php if ( $this->data['createemailset'] ) {
 								echo 'checked="checked"';
 							} ?>
-						>
-						<?php $this->msg( 'createaccountmail' ); ?>
-					</label>
+						><label for="wpCreateaccountMail">
+							<?php $this->msg( 'createaccountmail' ); ?>
+						</label>
+					</div>
 				<?php } ?>
 			</div>
 <?php } ?>
 
-<?php if( !$this->data['emailrequired'] ) { ?>
-			<div class="mw-row-password">
+			<div class="mw-ui-vform-field mw-row-password">
 				<label for='wpPassword2'><?php $this->msg( 'userlogin-yourpassword' ); ?></label>
 				<?php
-				echo Html::input( 'wpPassword', null, 'password', array(
-					'class' => 'mw-input loginPassword',
+				echo Html::input( 'wpPassword', null, 'password', [
+					'class' => 'mw-ui-input loginPassword',
 					'id' => 'wpPassword2',
 					'tabindex' => '3',
 					'size' => '20',
 					'required',
 					'placeholder' => $this->getMsg( 'createacct-yourpassword-ph' )->text()
-				) + User::passwordChangeInputAttribs() );
+				] + User::passwordChangeInputAttribs() );
 				?>
 			</div>
 
@@ -126,30 +135,30 @@ class UsercreateTemplate extends BaseTemplate {
 					$select->addOption( $dom );
 				}
 			?>
-				<div id="mw-user-domain-section">
+				<div class="mw-ui-vform-field" id="mw-user-domain-section">
 					<label for="wpDomain"><?php $this->msg( 'yourdomainname' ); ?></label>
-					<div class="mw-input">
+					<div>
 						<?php echo $select->getHTML(); ?>
 					</div>
 				</div>
 			<?php } ?>
 
-			<div class="mw-row-password">
+			<div class="mw-ui-vform-field mw-row-password">
 				<label for='wpRetype'><?php $this->msg( 'createacct-yourpasswordagain' ); ?></label>
 				<?php
-				echo Html::input( 'wpRetype', null, 'password', array(
-					'class' => 'mw-input loginPassword',
+				echo Html::input( 'wpRetype', null, 'password', [
+					'class' => 'mw-ui-input loginPassword',
 					'id' => 'wpRetype',
 					'tabindex' => '5',
 					'size' => '20',
 					'required',
 					'placeholder' => $this->getMsg( 'createacct-yourpasswordagain-ph' )->text()
-					) + User::passwordChangeInputAttribs() );
+				] + User::passwordChangeInputAttribs() );
 				?>
 			</div>
 <?php } ?>
 
-			<div>
+			<div class="mw-ui-vform-field">
 				<?php if ( $this->data['useemail'] ) { ?>
 					<label for='wpEmail'>
 						<?php
@@ -160,23 +169,23 @@ class UsercreateTemplate extends BaseTemplate {
 						?>
 					</label>
 					<?php
-						echo Html::input( 'wpEmail', $this->data['email'], 'email', array(
-							'class' => 'mw-input loginText',
+						echo Html::input( 'wpEmail', $this->data['email'], 'email', [
+							'class' => 'mw-ui-input loginText',
 							'id' => 'wpEmail',
 							'tabindex' => '6',
 							'size' => '20',
 							'required' => $this->data['emailrequired'],
 							'placeholder' => $this->getMsg( $this->data['loggedin'] ?
 								'createacct-another-email-ph' : 'createacct-email-ph' )->text()
-						) );
+						] );
 					?>
 				<?php } ?>
 			</div>
 
 			<?php if ( $this->data['userealname'] ) { ?>
-				<div>
+				<div class="mw-ui-vform-field">
 					<label for='wpRealName'><?php $this->msg( 'createacct-realname' ); ?></label>
-					<input type='text' class='mw-input loginText' name="wpRealName" id="wpRealName"
+					<input type='text' class='mw-ui-input loginText' name="wpRealName" id="wpRealName"
 						tabindex="7"
 						value="<?php $this->text( 'realname' ); ?>" size='20' />
 					<div class="prefsectiontip">
@@ -186,15 +195,15 @@ class UsercreateTemplate extends BaseTemplate {
 			<?php } ?>
 
 			<?php if ( $this->data['usereason'] ) { ?>
-				<div>
+				<div class="mw-ui-vform-field">
 					<label for='wpReason'><?php $this->msg( 'createacct-reason' ); ?></label>
-					<?php echo Html::input( 'wpReason', $this->data['reason'], 'text', array(
-						'class' => 'mw-input loginText',
+					<?php echo Html::input( 'wpReason', $this->data['reason'], 'text', [
+						'class' => 'mw-ui-input loginText',
 						'id' => 'wpReason',
 						'tabindex' => '8',
 						'size' => '20',
 						'placeholder' => $this->getMsg( 'createacct-reason-ph' )->text()
-					) ); ?>
+					] ); ?>
 				</div>
 			<?php } ?>
 
@@ -202,12 +211,12 @@ class UsercreateTemplate extends BaseTemplate {
 			$tabIndex = 9;
 			if ( isset( $this->data['extraInput'] ) && is_array( $this->data['extraInput'] ) ) {
 				foreach ( $this->data['extraInput'] as $inputItem ) { ?>
-					<div>
+					<div class="mw-ui-vform-field">
 						<?php
 						// If it's a checkbox, output the whole thing (assume it has a msg).
 						if ( $inputItem['type'] == 'checkbox' ) {
 						?>
-							<label class="mw-ui-checkbox-label">
+							<div class="mw-ui-checkbox">
 								<input
 									name="<?php echo htmlspecialchars( $inputItem['name'] ); ?>"
 									id="<?php echo htmlspecialchars( $inputItem['name'] ); ?>"
@@ -216,9 +225,10 @@ class UsercreateTemplate extends BaseTemplate {
 									<?php if ( !empty( $inputItem['value'] ) ) {
 										echo 'checked="checked"';
 									} ?>
-								>
-								<?php $this->msg( $inputItem['msg'] ); ?>
-							</label>
+								><label for="<?php echo htmlspecialchars( $inputItem['name'] ); ?>">
+									<?php $this->msg( $inputItem['msg'] ); ?>
+								</label>
+							</div>
 						<?php
 						} else {
 							// Not a checkbox.
@@ -231,7 +241,7 @@ class UsercreateTemplate extends BaseTemplate {
 							<?php } ?>
 							<input
 								type="<?php echo htmlspecialchars( $inputItem['type'] ); ?>"
-								class="mw-input"
+								class="mw-ui-input"
 								name="<?php echo htmlspecialchars( $inputItem['name'] ); ?>"
 								tabindex="<?php echo $tabIndex++; ?>"
 								value="<?php echo htmlspecialchars( $inputItem['value'] ); ?>"
@@ -248,21 +258,26 @@ class UsercreateTemplate extends BaseTemplate {
 				}
 			}
 
-			// JS attempts to move the image CAPTCHA below this part of the form,
-			// so skip one index.
+			// A separate placeholder for any inserting any extrafields, e.g used by ConfirmEdit extension
+			if ( $this->haveData( 'extrafields' ) ) {
+				echo $this->data['extrafields'];
+			}
+			// skip one index.
 			$tabIndex++;
 			?>
-			<div class="mw-submit">
+			<div class="mw-ui-vform-field mw-submit">
 				<?php
-				echo Html::input(
-					'wpCreateaccount',
+				echo Html::submitButton(
 					$this->getMsg( $this->data['loggedin'] ? 'createacct-another-submit' : 'createacct-submit' ),
-					'submit',
-					array(
-						'class' => "mw-ui-button mw-ui-big mw-ui-block mw-ui-constructive",
+					[
 						'id' => 'wpCreateaccount',
+						'name' => 'wpCreateaccount',
 						'tabindex' => $tabIndex++
-					)
+					],
+					[
+						'mw-ui-block',
+						'mw-ui-constructive',
+					]
 				);
 				?>
 			</div>

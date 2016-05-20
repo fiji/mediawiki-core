@@ -20,9 +20,18 @@
  * @file
  */
 
+// Bail on old versions of PHP, or if composer has not been run yet to install
+// dependencies. Using dirname( __FILE__ ) here because __DIR__ is PHP5.3+.
+// @codingStandardsIgnoreStart MediaWiki.Usage.DirUsage.FunctionFound
+require_once dirname( __FILE__ ) . '/../includes/PHPVersionCheck.php';
+// @codingStandardsIgnoreEnd
+wfEntryPointCheck( 'mw-config/index.php' );
+
 define( 'MW_CONFIG_CALLBACK', 'Installer::overrideConfig' );
 define( 'MEDIAWIKI_INSTALL', true );
 
+// Resolve relative to regular MediaWiki root
+// instead of mw-config subdirectory.
 chdir( dirname( __DIR__ ) );
 require dirname( __DIR__ ) . '/includes/WebStart.php';
 
@@ -34,6 +43,15 @@ function wfInstallerMain() {
 	$installer = InstallerOverrides::getWebInstaller( $wgRequest );
 
 	if ( !$installer->startSession() ) {
+
+		if ( $installer->request->getVal( "css" ) ) {
+			// Do not display errors on css pages
+			$installer->outputCss();
+			exit;
+		}
+
+		$errors = $installer->getPhpErrors();
+		$installer->showError( 'config-session-error', $errors[0] );
 		$installer->finish();
 		exit;
 	}
@@ -42,7 +60,7 @@ function wfInstallerMain() {
 	if ( isset( $_SESSION['installData'][$fingerprint] ) ) {
 		$session = $_SESSION['installData'][$fingerprint];
 	} else {
-		$session = array();
+		$session = [];
 	}
 
 	if ( !is_null( $wgRequest->getVal( 'uselang' ) ) ) {
@@ -53,6 +71,7 @@ function wfInstallerMain() {
 		$langCode = 'en';
 	}
 	$wgLang = Language::factory( $langCode );
+	RequestContext::getMain()->setLanguage( $wgLang );
 
 	$installer->setParserLanguage( $wgLang );
 

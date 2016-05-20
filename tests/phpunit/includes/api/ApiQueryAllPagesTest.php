@@ -6,21 +6,27 @@
  * @group medium
  */
 class ApiQueryAllPagesTest extends ApiTestCase {
+
 	protected function setUp() {
 		parent::setUp();
 		$this->doLogin();
 	}
 
-	function testBug25702() {
+	/**
+	 *Test bug 25702
+	 *Prefixes of API search requests are not handled with case sensitivity and may result
+	 *in wrong search results
+	 */
+	public function testPrefixNormalizationSearchBug() {
 		$title = Title::newFromText( 'Category:Template:xyz' );
 		$page = WikiPage::factory( $title );
 		$page->doEdit( 'Some text', 'inserting content' );
 
-		$result = $this->doApiRequest( array(
+		$result = $this->doApiRequest( [
 			'action' => 'query',
 			'list' => 'allpages',
 			'apnamespace' => NS_CATEGORY,
-			'apprefix' => 'Template:x' ) );
+			'apprefix' => 'Template:x' ] );
 
 		$this->assertArrayHasKey( 'query', $result[0] );
 		$this->assertArrayHasKey( 'allpages', $result[0]['query'] );

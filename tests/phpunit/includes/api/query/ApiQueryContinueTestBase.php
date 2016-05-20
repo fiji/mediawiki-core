@@ -21,9 +21,6 @@
  *
  * @file
  */
-
-require_once 'ApiQueryTestBase.php';
-
 abstract class ApiQueryContinueTestBase extends ApiQueryTestBase {
 
 	/**
@@ -33,6 +30,12 @@ abstract class ApiQueryContinueTestBase extends ApiQueryTestBase {
 
 	/**
 	 * Run query() and compare against expected values
+	 * @param array $expected
+	 * @param array $params Api parameters
+	 * @param int $expectedCount Max number of iterations
+	 * @param string $id Unit test id
+	 * @param bool $continue True to use smart continue
+	 * @return array Merged results data array
 	 */
 	protected function checkC( $expected, $params, $expectedCount, $id, $continue = true ) {
 		$result = $this->query( $params, $expectedCount, $id, $continue );
@@ -41,11 +44,11 @@ abstract class ApiQueryContinueTestBase extends ApiQueryTestBase {
 
 	/**
 	 * Run query in a loop until no more values are available
-	 * @param array $params api parameters
-	 * @param int $expectedCount max number of iterations
-	 * @param string $id unit test id
-	 * @param boolean $useContinue true to use smart continue
-	 * @return mixed: merged results data array
+	 * @param array $params Api parameters
+	 * @param int $expectedCount Max number of iterations
+	 * @param string $id Unit test id
+	 * @param bool $useContinue True to use smart continue
+	 * @return array Merged results data array
 	 * @throws Exception
 	 */
 	protected function query( $params, $expectedCount, $id, $useContinue = true ) {
@@ -54,12 +57,9 @@ abstract class ApiQueryContinueTestBase extends ApiQueryTestBase {
 		} else {
 			$params['action'] = 'query';
 		}
-		if ( $useContinue && !isset( $params['continue'] ) ) {
-			$params['continue'] = '';
-		}
 		$count = 0;
-		$result = array();
-		$continue = array();
+		$result = [];
+		$continue = [];
 		do {
 			$request = array_merge( $params, $continue );
 			uksort( $request, function ( $a, $b ) {
@@ -70,7 +70,7 @@ abstract class ApiQueryContinueTestBase extends ApiQueryTestBase {
 				return strcmp( $a, $b );
 			} );
 			$reqStr = http_build_query( $request );
-			//$reqStr = str_replace( '&', ' & ', $reqStr );
+			// $reqStr = str_replace( '&', ' & ', $reqStr );
 			$this->assertLessThan( $expectedCount, $count, "$id more data: $reqStr" );
 			if ( $this->mVerbose ) {
 				print "$id (#$count): $reqStr\n";
@@ -90,7 +90,7 @@ abstract class ApiQueryContinueTestBase extends ApiQueryTestBase {
 				$continue = $data['continue'];
 				unset( $data['continue'] );
 			} else {
-				$continue = array();
+				$continue = [];
 			}
 			if ( $this->mVerbose ) {
 				$this->printResult( $data );
@@ -98,10 +98,7 @@ abstract class ApiQueryContinueTestBase extends ApiQueryTestBase {
 			$this->mergeResult( $result, $data );
 			$count++;
 			if ( empty( $continue ) ) {
-				// $this->assertEquals( $expectedCount, $count, "$id finished early" );
-				if ( $expectedCount > $count ) {
-					print "***** $id Finished early in $count turns. $expectedCount was expected\n";
-				}
+				$this->assertEquals( $expectedCount, $count, "$id finished early" );
 
 				return $result;
 			} elseif ( !$useContinue ) {
@@ -115,7 +112,7 @@ abstract class ApiQueryContinueTestBase extends ApiQueryTestBase {
 	 */
 	private function printResult( $data ) {
 		$q = $data['query'];
-		$print = array();
+		$print = [];
 		if ( isset( $q['pages'] ) ) {
 			foreach ( $q['pages'] as $p ) {
 				$m = $p['title'];
@@ -167,7 +164,11 @@ abstract class ApiQueryContinueTestBase extends ApiQueryTestBase {
 	 * @param bool $numericIds If true, treat keys as ids to be merged instead of appending
 	 */
 	protected function mergeResult( &$results, $newResult, $numericIds = false ) {
-		$this->assertEquals( is_array( $results ), is_array( $newResult ), 'Type of result and data do not match' );
+		$this->assertEquals(
+			is_array( $results ),
+			is_array( $newResult ),
+			'Type of result and data do not match'
+		);
 		if ( !is_array( $results ) ) {
 			$this->assertEquals( $results, $newResult, 'Repeated result must be the same as before' );
 		} else {

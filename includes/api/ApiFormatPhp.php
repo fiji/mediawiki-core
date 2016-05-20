@@ -35,10 +35,56 @@ class ApiFormatPhp extends ApiFormatBase {
 	}
 
 	public function execute() {
-		$this->printText( serialize( $this->getResultData() ) );
+		$params = $this->extractRequestParams();
+
+		switch ( $params['formatversion'] ) {
+			case 1:
+				$transforms = [
+					'BC' => [],
+					'Types' => [],
+					'Strip' => 'all',
+				];
+				break;
+
+			case 2:
+			case 'latest':
+				$transforms = [
+					'Types' => [],
+					'Strip' => 'all',
+				];
+				break;
+
+			default:
+				$this->dieUsage( __METHOD__ . ': Unknown value for \'formatversion\'', 'unknownformatversion' );
+		}
+		$text = serialize( $this->getResult()->getResultData( null, $transforms ) );
+
+		// Bug 66776: wfMangleFlashPolicy() is needed to avoid a nasty bug in
+		// Flash, but what it does isn't friendly for the API. There's nothing
+		// we can do here that isn't actively broken in some manner, so let's
+		// just be broken in a useful manner.
+		if ( $this->getConfig()->get( 'MangleFlashPolicy' ) &&
+			in_array( 'wfOutputHandler', ob_list_handlers(), true ) &&
+			preg_match( '/\<\s*cross-domain-policy(?=\s|\>)/i', $text )
+		) {
+			$this->dieUsage(
+				'This response cannot be represented using format=php. ' .
+				'See https://phabricator.wikimedia.org/T68776',
+				'internalerror'
+			);
+		}
+
+		$this->printText( $text );
 	}
 
-	public function getDescription() {
-		return 'Output data in serialized PHP format' . parent::getDescription();
+	public function getAllowedParams() {
+		$ret = parent::getAllowedParams() + [
+			'formatversion' => [
+				ApiBase::PARAM_TYPE => [ 1, 2, 'latest' ],
+				ApiBase::PARAM_DFLT => 1,
+				ApiBase::PARAM_HELP_MSG => 'apihelp-php-param-formatversion',
+			],
+		];
+		return $ret;
 	}
 }

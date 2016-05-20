@@ -5,13 +5,13 @@
 	/**
 	 * Test factory for $.fn.textSelection( 'encapsulateText' )
 	 *
-	 * @param options {object} associative array containing:
-	 *   description {string}
-	 *   input {string}
-	 *   output {string}
-	 *   start {int} starting char for selection
-	 *   end {int} ending char for selection
-	 *   params {object} add'l parameters for $().textSelection( 'encapsulateText' )
+	 * @param {Object} options Associative configuration array
+	 * @param {string} options.description Description
+	 * @param {string} options.input Input
+	 * @param {string} options.output Output
+	 * @param {int} options.start Starting char for selection
+	 * @param {int} options.end Ending char for selection
+	 * @param {Object} options.params Additional parameters for $().textSelection( 'encapsulateText' )
 	 */
 	function encapsulateTest( options ) {
 		var opt = $.extend( {
@@ -32,34 +32,34 @@
 		}, opt.after );
 
 		QUnit.test( opt.description, function ( assert ) {
-			/*jshint onevar: false */
-			var tests = 1;
+			var $textarea, start, end, options, text, selected,
+				tests = 1;
 			if ( opt.after.selected !== null ) {
 				tests++;
 			}
 			QUnit.expect( tests );
 
-			var $textarea = $( '<textarea>' );
+			$textarea = $( '<textarea>' );
 
 			$( '#qunit-fixture' ).append( $textarea );
 
-			//$textarea.textSelection( 'setContents', opt.before.text); // this method is actually missing atm...
-			$textarea.val( opt.before.text ); // won't work with the WikiEditor iframe?
+			$textarea.textSelection( 'setContents', opt.before.text );
 
-			var start = opt.before.start,
-				end = opt.before.end;
+			start = opt.before.start;
+			end = opt.before.end;
 
-			var options = $.extend( {}, opt.replace ); // Clone opt.replace
+			// Clone opt.replace
+			options = $.extend( {}, opt.replace );
 			options.selectionStart = start;
 			options.selectionEnd = end;
 			$textarea.textSelection( 'encapsulateSelection', options );
 
-			var text = $textarea.textSelection( 'getContents' ).replace( /\r\n/g, '\n' );
+			text = $textarea.textSelection( 'getContents' ).replace( /\r\n/g, '\n' );
 
 			assert.equal( text, opt.after.text, 'Checking full text after encapsulation' );
 
 			if ( opt.after.selected !== null ) {
-				var selected = $textarea.textSelection( 'getSelection' );
+				selected = $textarea.textSelection( 'getSelection' );
 				assert.equal( selected, opt.after.selected, 'Checking selected text after encapsulation.' );
 			}
 
@@ -161,7 +161,6 @@
 		replace: h2
 	} );
 
-
 	encapsulateTest( {
 		description: 'ownline option: turn a partial line into new h2',
 		before: {
@@ -175,7 +174,6 @@
 		},
 		replace: h2
 	} );
-
 
 	encapsulateTest( {
 		description: 'splitlines option: no selection, insert new list item',
@@ -216,10 +214,10 @@
 		replace: ulist
 	} );
 
-
 	function caretTest( options ) {
 		QUnit.test( options.description, 2, function ( assert ) {
-			var pos, $textarea = $( '<textarea>' ).text( options.text );
+			var pos,
+				$textarea = $( '<textarea>' ).text( options.text );
 
 			$( '#qunit-fixture' ).append( $textarea );
 
@@ -239,23 +237,22 @@
 			}
 
 			pos = $textarea.textSelection( 'getCaretPosition', { startAndEnd: true } );
-			among( pos[0], options.start, 'Caret start should be where we set it.' );
-			among( pos[1], options.end, 'Caret end should be where we set it.' );
+			among( pos[ 0 ], options.start, 'Caret start should be where we set it.' );
+			among( pos[ 1 ], options.end, 'Caret end should be where we set it.' );
 		} );
 	}
 
 	caretSample = 'Some big text that we like to work with. Nothing fancy... you know what I mean?';
 
-	/*
-	 // @broken: Disabled per bug 34820
-	 caretTest({
-	 description: 'getCaretPosition with original/empty selection - bug 31847 with IE 6/7/8',
-	 text: caretSample,
-	 start: [0, caretSample.length], // Opera and Firefox (prior to FF 6.0) default caret to the end of the box (caretSample.length)
-	 end: [0, caretSample.length], // Other browsers default it to the beginning (0), so check both.
-	 mode: 'get'
-	 });
-	 */
+	/* @broken: Disabled per bug 34820
+	caretTest({
+		description: 'getCaretPosition with original/empty selection - bug 31847 with IE 6/7/8',
+		text: caretSample,
+		start: [0, caretSample.length], // Opera and Firefox (prior to FF 6.0) default caret to the end of the box (caretSample.length)
+		end: [0, caretSample.length], // Other browsers default it to the beginning (0), so check both.
+		mode: 'get'
+	});
+	*/
 
 	caretTest( {
 		description: 'set/getCaretPosition with forced empty selection',

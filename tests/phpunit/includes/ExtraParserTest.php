@@ -2,6 +2,8 @@
 
 /**
  * Parser-related tests that don't suit for parserTests.txt
+ *
+ * @group Database
  */
 class ExtraParserTest extends MediaWikiTestCase {
 
@@ -14,35 +16,32 @@ class ExtraParserTest extends MediaWikiTestCase {
 		parent::setUp();
 
 		$contLang = Language::factory( 'en' );
-		$this->setMwGlobals( array(
+		$this->setMwGlobals( [
 			'wgShowDBErrorBacktrace' => true,
-			'wgLanguageCode' => 'en',
-			'wgContLang' => $contLang,
-			'wgLang' => Language::factory( 'en' ),
-			'wgMemc' => new EmptyBagOStuff,
-			'wgAlwaysUseTidy' => false,
 			'wgCleanSignatures' => true,
-		) );
+		] );
+		$this->setUserLang( 'en' );
+		$this->setContentLang( $contLang );
 
+		// FIXME: This test should pass without setting global content language
 		$this->options = ParserOptions::newFromUserAndLang( new User, $contLang );
-		$this->options->setTemplateCallback( array( __CLASS__, 'statelessFetchTemplate' ) );
+		$this->options->setTemplateCallback( [ __CLASS__, 'statelessFetchTemplate' ] );
 		$this->parser = new Parser;
 
 		MagicWord::clearCache();
 	}
 
 	/**
-	 * Bug 8689 - Long numeric lines kill the parser
+	 * @see Bug 8689
 	 * @covers Parser::parse
 	 */
-	public function testBug8689() {
-		global $wgUser;
+	public function testLongNumericLinesDontKillTheParser() {
 		$longLine = '1.' . str_repeat( '1234567890', 100000 ) . "\n";
 
-		$t = Title::newFromText( 'Unit test' );
-		$options = ParserOptions::newFromUser( $wgUser );
+		$title = Title::newFromText( 'Unit test' );
+		$options = ParserOptions::newFromUser( new User() );
 		$this->assertEquals( "<p>$longLine</p>",
-			$this->parser->parse( $longLine, $t, $options )->getText() );
+			$this->parser->parse( $longLine, $title, $options )->getText() );
 	}
 
 	/**
@@ -52,16 +51,23 @@ class ExtraParserTest extends MediaWikiTestCase {
 	public function testParse() {
 		$title = Title::newFromText( __FUNCTION__ );
 		$parserOutput = $this->parser->parse( "Test\n{{Foo}}\n{{Bar}}", $title, $this->options );
-		$this->assertEquals( "<p>Test\nContent of <i>Template:Foo</i>\nContent of <i>Template:Bar</i>\n</p>", $parserOutput->getText() );
+		$this->assertEquals(
+			"<p>Test\nContent of <i>Template:Foo</i>\nContent of <i>Template:Bar</i>\n</p>",
+			$parserOutput->getText()
+		);
 	}
 
 	/**
 	 * @covers Parser::preSaveTransform
 	 */
 	public function testPreSaveTransform() {
-		global $wgUser;
 		$title = Title::newFromText( __FUNCTION__ );
-		$outputText = $this->parser->preSaveTransform( "Test\r\n{{subst:Foo}}\n{{Bar}}", $title, $wgUser, $this->options );
+		$outputText = $this->parser->preSaveTransform(
+			"Test\r\n{{subst:Foo}}\n{{Bar}}",
+			$title,
+			new User(),
+			$this->options
+		);
 
 		$this->assertEquals( "Test\nContent of ''Template:Foo''\n{{Bar}}", $outputText );
 	}
@@ -73,7 +79,10 @@ class ExtraParserTest extends MediaWikiTestCase {
 		$title = Title::newFromText( __FUNCTION__ );
 		$outputText = $this->parser->preprocess( "Test\n{{Foo}}\n{{Bar}}", $title, $this->options );
 
-		$this->assertEquals( "Test\nContent of ''Template:Foo''\nContent of ''Template:Bar''", $outputText );
+		$this->assertEquals(
+			"Test\nContent of ''Template:Foo''\nContent of ''Template:Bar''",
+			$outputText
+		);
 	}
 
 	/**
@@ -110,19 +119,27 @@ class ExtraParserTest extends MediaWikiTestCase {
 	}
 
 	public static function provideStringsForCleanSigInSig() {
-		return array(
-			array( "{{Foo}} ~~~~", "{{Foo}} " ),
-			array( "~~~", "" ),
-			array( "~~~~~", "" ),
-		);
+		return [
+			[ "{{Foo}} ~~~~", "{{Foo}} " ],
+			[ "~~~", "" ],
+			[ "~~~~~", "" ],
+		];
 	}
 
 	/**
 	 * @covers Parser::getSection
 	 */
 	public function testGetSection() {
-		$outputText2 = $this->parser->getSection( "Section 0\n== Heading 1 ==\nSection 1\n=== Heading 2 ===\nSection 2\n== Heading 3 ==\nSection 3\n", 2 );
-		$outputText1 = $this->parser->getSection( "Section 0\n== Heading 1 ==\nSection 1\n=== Heading 2 ===\nSection 2\n== Heading 3 ==\nSection 3\n", 1 );
+		$outputText2 = $this->parser->getSection(
+			"Section 0\n== Heading 1 ==\nSection 1\n=== Heading 2 ===\n"
+				. "Section 2\n== Heading 3 ==\nSection 3\n",
+			2
+		);
+		$outputText1 = $this->parser->getSection(
+			"Section 0\n== Heading 1 ==\nSection 1\n=== Heading 2 ===\n"
+				. "Section 2\n== Heading 3 ==\nSection 3\n",
+			1
+		);
 
 		$this->assertEquals( "=== Heading 2 ===\nSection 2", $outputText2 );
 		$this->assertEquals( "== Heading 1 ==\nSection 1\n=== Heading 2 ===\nSection 2", $outputText1 );
@@ -132,7 +149,12 @@ class ExtraParserTest extends MediaWikiTestCase {
 	 * @covers Parser::replaceSection
 	 */
 	public function testReplaceSection() {
-		$outputText = $this->parser->replaceSection( "Section 0\n== Heading 1 ==\nSection 1\n=== Heading 2 ===\nSection 2\n== Heading 3 ==\nSection 3\n", 1, "New section 1" );
+		$outputText = $this->parser->replaceSection(
+			"Section 0\n== Heading 1 ==\nSection 1\n=== Heading 2 ===\n"
+				. "Section 2\n== Heading 3 ==\nSection 3\n",
+			1,
+			"New section 1"
+		);
 
 		$this->assertEquals( "Section 0\nNew section 1\n\n== Heading 3 ==\nSection 3", $outputText );
 	}
@@ -143,19 +165,29 @@ class ExtraParserTest extends MediaWikiTestCase {
 	 */
 	public function testGetPreloadText() {
 		$title = Title::newFromText( __FUNCTION__ );
-		$outputText = $this->parser->getPreloadText( "{{Foo}}<noinclude> censored</noinclude> information <!-- is very secret -->", $title, $this->options );
+		$outputText = $this->parser->getPreloadText(
+			"{{Foo}}<noinclude> censored</noinclude> information <!-- is very secret -->",
+			$title,
+			$this->options
+		);
 
 		$this->assertEquals( "{{Foo}} information <!-- is very secret -->", $outputText );
 	}
 
+	/**
+	 * @param Title $title
+	 * @param bool $parser
+	 *
+	 * @return array
+	 */
 	static function statelessFetchTemplate( $title, $parser = false ) {
 		$text = "Content of ''" . $title->getFullText() . "''";
-		$deps = array();
+		$deps = [];
 
-		return array(
+		return [
 			'text' => $text,
 			'finalTitle' => $title,
-			'deps' => $deps );
+			'deps' => $deps ];
 	}
 
 	/**
@@ -166,7 +198,7 @@ class ExtraParserTest extends MediaWikiTestCase {
 		$title = Title::newFromText( __FUNCTION__ );
 		$catName = wfMessage( 'broken-file-category' )->inContentLanguage()->text();
 		$cat = Title::makeTitleSafe( NS_CATEGORY, $catName );
-		$expected = array( $cat->getDBkey() );
+		$expected = [ $cat->getDBkey() ];
 		$parserOutput = $this->parser->parse( "[[file:nonexistent]]", $title, $this->options );
 		$result = $parserOutput->getCategoryLinks();
 		$this->assertEquals( $expected, $result );

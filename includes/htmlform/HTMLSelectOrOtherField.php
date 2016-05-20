@@ -2,45 +2,43 @@
 
 /**
  * Select dropdown field, with an additional "other" textbox.
+ *
+ * HTMLComboboxField implements the same functionality using a single form field
+ * and should be used instead.
  */
 class HTMLSelectOrOtherField extends HTMLTextField {
 	function __construct( $params ) {
-		if ( !in_array( 'other', $params['options'], true ) ) {
+		parent::__construct( $params );
+		$this->getOptions();
+		if ( !in_array( 'other', $this->mOptions, true ) ) {
 			$msg =
 				isset( $params['other'] )
 					? $params['other']
 					: wfMessage( 'htmlform-selectorother-other' )->text();
-			$params['options'][$msg] = 'other';
+			// Have 'other' always as first element
+			$this->mOptions = [ $msg => 'other' ] + $this->mOptions;
 		}
 
-		parent::__construct( $params );
-	}
-
-	static function forceToStringRecursive( $array ) {
-		if ( is_array( $array ) ) {
-			return array_map( array( __CLASS__, 'forceToStringRecursive' ), $array );
-		} else {
-			return strval( $array );
-		}
 	}
 
 	function getInputHTML( $value ) {
 		$valInSelect = false;
 
 		if ( $value !== false ) {
-			$valInSelect = in_array( $value, HTMLFormField::flattenOptions( $this->mParams['options'] ) );
+			$value = strval( $value );
+			$valInSelect = in_array(
+				$value, HTMLFormField::flattenOptions( $this->getOptions() ), true
+			);
 		}
 
 		$selected = $valInSelect ? $value : 'other';
 
-		$opts = self::forceToStringRecursive( $this->mParams['options'] );
-
 		$select = new XmlSelect( $this->mName, $this->mID, $selected );
-		$select->addOptions( $opts );
+		$select->addOptions( $this->getOptions() );
 
 		$select->setAttribute( 'class', 'mw-htmlform-select-or-other' );
 
-		$tbAttribs = array( 'id' => $this->mID . '-other', 'size' => $this->getSize() );
+		$tbAttribs = [ 'id' => $this->mID . '-other', 'size' => $this->getSize() ];
 
 		if ( !empty( $this->mParams['disabled'] ) ) {
 			$select->setAttribute( 'disabled', 'disabled' );
@@ -67,16 +65,20 @@ class HTMLSelectOrOtherField extends HTMLTextField {
 		return "$select<br />\n$textbox";
 	}
 
+	function getInputOOUI( $value ) {
+		return false;
+	}
+
 	/**
-	 * @param  $request WebRequest
+	 * @param WebRequest $request
 	 *
-	 * @return String
+	 * @return string
 	 */
 	function loadDataFromRequest( $request ) {
 		if ( $request->getCheck( $this->mName ) ) {
 			$val = $request->getText( $this->mName );
 
-			if ( $val == 'other' ) {
+			if ( $val === 'other' ) {
 				$val = $request->getText( $this->mName . '-other' );
 			}
 

@@ -24,13 +24,13 @@
  * @ingroup Test
  * @group GenericArrayObject
  *
- * @licence GNU GPL v2+
  * @author Jeroen De Dauw < jeroendedauw@gmail.com >
  */
-abstract class GenericArrayObjectTest extends MediaWikiTestCase {
+abstract class GenericArrayObjectTest extends PHPUnit_Framework_TestCase {
 
 	/**
-	 * Returns objects that can serve as elements in the concrete GenericArrayObject deriving class being tested.
+	 * Returns objects that can serve as elements in the concrete
+	 * GenericArrayObject deriving class being tested.
 	 *
 	 * @since 1.20
 	 *
@@ -55,7 +55,7 @@ abstract class GenericArrayObjectTest extends MediaWikiTestCase {
 	 * @return array
 	 */
 	public function instanceProvider() {
-		$instances = array();
+		$instances = [];
 
 		foreach ( $this->elementInstancesProvider() as $elementInstances ) {
 			$instances[] = $this->getNew( $elementInstances[0] );
@@ -71,7 +71,7 @@ abstract class GenericArrayObjectTest extends MediaWikiTestCase {
 	 *
 	 * @return GenericArrayObject
 	 */
-	protected function getNew( array $elements = array() ) {
+	protected function getNew( array $elements = [] ) {
 		$class = $this->getInstanceClass();
 
 		return new $class( $elements );
@@ -104,7 +104,7 @@ abstract class GenericArrayObjectTest extends MediaWikiTestCase {
 	public function testIsEmpty( array $elements ) {
 		$arrayObject = $this->getNew( $elements );
 
-		$this->assertEquals( $elements === array(), $arrayObject->isEmpty() );
+		$this->assertEquals( $elements === [], $arrayObject->isEmpty() );
 	}
 
 	/**
@@ -170,7 +170,7 @@ abstract class GenericArrayObjectTest extends MediaWikiTestCase {
 	/**
 	 * @since 1.20
 	 *
-	 * @param callback $function
+	 * @param callable $function
 	 *
 	 * @covers GenericArrayObject::getObjectType
 	 */
@@ -180,7 +180,7 @@ abstract class GenericArrayObjectTest extends MediaWikiTestCase {
 
 		$elementClass = $list->getObjectType();
 
-		foreach ( array( 42, 'foo', array(), new stdClass(), 4.2 ) as $element ) {
+		foreach ( [ 42, 'foo', [], new stdClass(), 4.2 ] as $element ) {
 			$validValid = $element instanceof $elementClass;
 
 			try {
@@ -208,7 +208,7 @@ abstract class GenericArrayObjectTest extends MediaWikiTestCase {
 	 * @covers GenericArrayObject::offsetSet
 	 */
 	public function testOffsetSet( array $elements ) {
-		if ( $elements === array() ) {
+		if ( $elements === [] ) {
 			$this->assertTrue( true );
 
 			return;

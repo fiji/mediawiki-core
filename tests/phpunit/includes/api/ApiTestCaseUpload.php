@@ -1,9 +1,8 @@
 <?php
 
 /**
- *  * Abstract class to support upload tests
+ * Abstract class to support upload tests
  */
-
 abstract class ApiTestCaseUpload extends ApiTestCase {
 	/**
 	 * Fixture -- run before every test
@@ -11,39 +10,39 @@ abstract class ApiTestCaseUpload extends ApiTestCase {
 	protected function setUp() {
 		parent::setUp();
 
-		$this->setMwGlobals( array(
+		$this->setMwGlobals( [
 			'wgEnableUploads' => true,
 			'wgEnableAPI' => true,
-		) );
-
-		wfSetupSession();
+		] );
 
 		$this->clearFakeUploads();
-	}
-
-	protected function tearDown() {
-		$this->clearTempUpload();
-
-		parent::tearDown();
 	}
 
 	/**
 	 * Helper function -- remove files and associated articles by Title
 	 *
-	 * @param Title $title title to be removed
+	 * @param Title $title Title to be removed
 	 *
 	 * @return bool
 	 */
 	public function deleteFileByTitle( $title ) {
 		if ( $title->exists() ) {
-			$file = wfFindFile( $title, array( 'ignoreRedirect' => true ) );
+			$file = wfFindFile( $title, [ 'ignoreRedirect' => true ] );
 			$noOldArchive = ""; // yes this really needs to be set this way
 			$comment = "removing for test";
 			$restrictDeletedVersions = false;
-			$status = FileDeleteForm::doDelete( $title, $file, $noOldArchive, $comment, $restrictDeletedVersions );
+			$status = FileDeleteForm::doDelete(
+				$title,
+				$file,
+				$noOldArchive,
+				$comment,
+				$restrictDeletedVersions
+			);
+
 			if ( !$status->isGood() ) {
 				return false;
 			}
+
 			$page = WikiPage::factory( $title );
 			$page->doDeleteArticle( "removing for test" );
 
@@ -57,7 +56,7 @@ abstract class ApiTestCaseUpload extends ApiTestCase {
 	/**
 	 * Helper function -- remove files and associated articles with a particular filename
 	 *
-	 * @param string $fileName filename to be removed
+	 * @param string $fileName Filename to be removed
 	 *
 	 * @return bool
 	 */
@@ -66,9 +65,10 @@ abstract class ApiTestCaseUpload extends ApiTestCase {
 	}
 
 	/**
-	 * Helper function -- given a file on the filesystem, find matching content in the db (and associated articles) and remove them.
+	 * Helper function -- given a file on the filesystem, find matching
+	 * content in the db (and associated articles) and remove them.
 	 *
-	 * @param string $filePath path to file on the filesystem
+	 * @param string $filePath Path to file on the filesystem
 	 *
 	 * @return bool
 	 */
@@ -87,16 +87,16 @@ abstract class ApiTestCaseUpload extends ApiTestCase {
 	 * Fake an upload by dumping the file into temp space, and adding info to $_FILES.
 	 * (This is what PHP would normally do).
 	 *
-	 * @param string $fieldName name this would have in the upload form
-	 * @param string $fileName name to title this
-	 * @param string $type mime type
-	 * @param string $filePath path where to find file contents
+	 * @param string $fieldName Name this would have in the upload form
+	 * @param string $fileName Name to title this
+	 * @param string $type MIME type
+	 * @param string $filePath Path where to find file contents
 	 *
 	 * @throws Exception
 	 * @return bool
 	 */
 	function fakeUploadFile( $fieldName, $fileName, $type, $filePath ) {
-		$tmpName = tempnam( wfTempDir(), "" );
+		$tmpName = $this->getNewTempFile();
 		if ( !file_exists( $filePath ) ) {
 			throw new Exception( "$filePath doesn't exist!" );
 		}
@@ -111,19 +111,19 @@ abstract class ApiTestCaseUpload extends ApiTestCase {
 			throw new Exception( "couldn't stat $tmpName" );
 		}
 
-		$_FILES[$fieldName] = array(
+		$_FILES[$fieldName] = [
 			'name' => $fileName,
 			'type' => $type,
 			'tmp_name' => $tmpName,
 			'size' => $size,
 			'error' => null
-		);
+		];
 
 		return true;
 	}
 
 	function fakeUploadChunk( $fieldName, $fileName, $type, & $chunkData ) {
-		$tmpName = tempnam( wfTempDir(), "" );
+		$tmpName = $this->getNewTempFile();
 		// copy the chunk data to temp location:
 		if ( !file_put_contents( $tmpName, $chunkData ) ) {
 			throw new Exception( "couldn't copy chunk data to $tmpName" );
@@ -135,28 +135,19 @@ abstract class ApiTestCaseUpload extends ApiTestCase {
 			throw new Exception( "couldn't stat $tmpName" );
 		}
 
-		$_FILES[$fieldName] = array(
+		$_FILES[$fieldName] = [
 			'name' => $fileName,
 			'type' => $type,
 			'tmp_name' => $tmpName,
 			'size' => $size,
 			'error' => null
-		);
-	}
-
-	function clearTempUpload() {
-		if ( isset( $_FILES['file']['tmp_name'] ) ) {
-			$tmp = $_FILES['file']['tmp_name'];
-			if ( file_exists( $tmp ) ) {
-				unlink( $tmp );
-			}
-		}
+		];
 	}
 
 	/**
 	 * Remove traces of previous fake uploads
 	 */
 	function clearFakeUploads() {
-		$_FILES = array();
+		$_FILES = [];
 	}
 }

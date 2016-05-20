@@ -3,7 +3,7 @@
  * MediaWiki parser test suite
  *
  * Copyright © 2004 Brion Vibber <brion@pobox.com>
- * http://www.mediawiki.org/
+ * https://www.mediawiki.org/
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,8 +24,11 @@
  * @ingroup Testing
  */
 
-$otions = array( 'quick', 'color', 'quiet', 'help', 'show-output', 'record', 'run-disabled', 'run-parsoid' );
-$optionsWithArgs = array( 'regex', 'filter', 'seed', 'setversion' );
+define( 'MW_PARSER_TEST', true );
+
+$options = [ 'quick', 'color', 'quiet', 'help', 'show-output',
+	'record', 'run-disabled', 'run-parsoid' ];
+$optionsWithArgs = [ 'regex', 'filter', 'seed', 'setversion', 'file' ];
 
 require_once __DIR__ . '/../maintenance/commandLine.inc';
 require_once __DIR__ . '/TestsAutoLoader.php';
@@ -69,21 +72,17 @@ if ( $wgDBtype == 'sqlite' ) {
 	}
 }
 
-# There is a convention that the parser should never
-# refer to $wgTitle directly, but instead use the title
-# passed to it.
-$wgTitle = Title::newFromText( 'Parser test script do not use' );
 $tester = new ParserTest( $options );
 
 if ( isset( $options['file'] ) ) {
-	$files = array( $options['file'] );
+	$files = [ $options['file'] ];
 } else {
 	// Default parser tests and any set from extensions or local config
 	$files = $wgParserTestFiles;
 }
 
 # Print out software version to assist with locating regressions
-$version = SpecialVersion::getVersion();
+$version = SpecialVersion::getVersion( 'nodb' );
 echo "This is MediaWiki version {$version}.\n\n";
 
 if ( isset( $options['fuzz'] ) ) {

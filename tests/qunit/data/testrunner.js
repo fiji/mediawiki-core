@@ -1,23 +1,19 @@
-/*global CompletenessTest */
+/*global CompletenessTest, sinon */
 /*jshint evil: true */
-( function ( $, mw, QUnit, undefined ) {
+( function ( $, mw, QUnit ) {
 	'use strict';
 
-	var mwTestIgnore, mwTester,
-		addons,
-		envExecCount,
-		ELEMENT_NODE = 1,
-		TEXT_NODE = 3;
+	var mwTestIgnore, mwTester, addons;
 
 	/**
 	 * Add bogus to url to prevent IE crazy caching
 	 *
-	 * @param value {String} a relative path (eg. 'data/foo.js'
+	 * @param {string} value a relative path (eg. 'data/foo.js'
 	 * or 'data/test.php?foo=bar').
-	 * @return {String} Such as 'data/foo.js?131031765087663960'
+	 * @return {string} Such as 'data/foo.js?131031765087663960'
 	 */
 	QUnit.fixurl = function ( value ) {
-		return value + (/\?/.test( value ) ? '&' : '?')
+		return value + ( /\?/.test( value ) ? '&' : '?' )
 			+ String( new Date().getTime() )
 			+ String( parseInt( Math.random() * 100000, 10 ) );
 	};
@@ -26,32 +22,17 @@
 	 * Configuration
 	 */
 
-	// When a test() indicates asynchronicity with stop(),
-	// allow 10 seconds to pass before killing the test(),
-	// and assuming failure.
-	QUnit.config.testTimeout = 10 * 1000;
+	// For each test() that is asynchronous, allow this time to pass before
+	// killing the test and assuming timeout failure.
+	QUnit.config.testTimeout = 60 * 1000;
 
 	// Add a checkbox to QUnit header to toggle MediaWiki ResourceLoader debug mode.
 	QUnit.config.urlConfig.push( {
 		id: 'debug',
 		label: 'Enable ResourceLoaderDebug',
-		tooltip: 'Enable debug mode in ResourceLoader'
+		tooltip: 'Enable debug mode in ResourceLoader',
+		value: 'true'
 	} );
-
-	QUnit.config.requireExpects = true;
-
-	/**
-	 * Load TestSwarm agent
-	 */
-	// Only if the current url indicates that there is a TestSwarm instance watching us
-	// (TestSwarm appends swarmURL to the test suites url it loads in iframes).
-	// Otherwise this is just a simple view of Special:JavaScriptTest/qunit directly,
-	// no point in loading inject.js in that case. Also, make sure that this instance
-	// of MediaWiki has actually been configured with the required url to that inject.js
-	// script. By default it is false.
-	if ( QUnit.urlParams.swarmURL && mw.config.get( 'QUnitTestSwarmInjectJSPath' ) ) {
-		jQuery.getScript( QUnit.fixurl( mw.config.get( 'QUnitTestSwarmInjectJSPath' ) ) );
-	}
 
 	/**
 	 * CompletenessTest
@@ -63,6 +44,83 @@
 		label: 'Run CompletenessTest',
 		tooltip: 'Run the completeness test'
 	} );
+
+	/**
+	 * SinonJS
+	 *
+	 * Glue code for nicer integration with QUnit setup/teardown
+	 * Inspired by http://sinonjs.org/releases/sinon-qunit-1.0.0.js
+	 * Fixes:
+	 * - Work properly with asynchronous QUnit by using module setup/teardown
+	 *   instead of synchronously wrapping QUnit.test.
+	 */
+	sinon.assert.fail = function ( msg ) {
+		QUnit.assert.ok( false, msg );
+	};
+	sinon.assert.pass = function ( msg ) {
+		QUnit.assert.ok( true, msg );
+	};
+	sinon.config = {
+		injectIntoThis: true,
+		injectInto: null,
+		properties: [ 'spy', 'stub', 'mock', 'sandbox' ],
+		// Don't fake timers by default
+		useFakeTimers: false,
+		useFakeServer: false
+	};
+	( function () {
+		var orgModule = QUnit.module;
+
+		QUnit.module = function ( name, localEnv ) {
+			localEnv = localEnv || {};
+			orgModule( name, {
+				setup: function () {
+					var config = sinon.getConfig( sinon.config );
+					config.injectInto = this;
+					sinon.sandbox.create( config );
+
+					if ( localEnv.setup ) {
+						localEnv.setup.call( this );
+					}
+				},
+				teardown: function () {
+					if ( localEnv.teardown ) {
+						localEnv.teardown.call( this );
+					}
+
+					this.sandbox.verifyAndRestore();
+				}
+			} );
+		};
+	}() );
+
+	// Extend QUnit.module to provide a fixture element.
+	( function () {
+		var orgModule = QUnit.module;
+
+		QUnit.module = function ( name, localEnv ) {
+			var fixture;
+			localEnv = localEnv || {};
+			orgModule( name, {
+				setup: function () {
+					fixture = document.createElement( 'div' );
+					fixture.id = 'qunit-fixture';
+					document.body.appendChild( fixture );
+
+					if ( localEnv.setup ) {
+						localEnv.setup.call( this );
+					}
+				},
+				teardown: function () {
+					if ( localEnv.teardown ) {
+						localEnv.teardown.call( this );
+					}
+
+					fixture.parentNode.removeChild( fixture );
+				}
+			} );
+		};
+	}() );
 
 	// Initiate when enabled
 	if ( QUnit.urlParams.completenesstest ) {
@@ -88,6 +146,12 @@
 				return true;
 			}
 
+			// Don't iterate over the module registry (the 'script' references would
+			// be listed as untested methods otherwise)
+			if ( val === mw.loader.moduleRegistry ) {
+				return true;
+			}
+
 			return false;
 		};
 
@@ -95,41 +159,64 @@
 	}
 
 	/**
-	 * Test environment recommended for all QUnit test modules
-	 *
-	 * Whether to log environment changes to the console
-	 */
-	QUnit.config.urlConfig.push( 'mwlogenv' );
-
-	/**
 	 * Reset mw.config and others to a fresh copy of the live config for each test(),
 	 * and restore it back to the live one afterwards.
-	 * @param localEnv {Object} [optional]
+	 *
+	 * @param {Object} [localEnv]
 	 * @example (see test suite at the bottom of this file)
 	 * </code>
 	 */
 	QUnit.newMwEnvironment = ( function () {
-		var log, liveConfig, liveMessages;
+		var warn, error, liveConfig, liveMessages,
+			ajaxRequests = [];
 
 		liveConfig = mw.config.values;
 		liveMessages = mw.messages.values;
 
+		function suppressWarnings() {
+			warn = mw.log.warn;
+			error = mw.log.error;
+			mw.log.warn = mw.log.error = $.noop;
+		}
+
+		function restoreWarnings() {
+			// Guard against calls not balanced with suppressWarnings()
+			if ( warn !== undefined ) {
+				mw.log.warn = warn;
+				mw.log.error = error;
+				warn = error = undefined;
+			}
+		}
+
 		function freshConfigCopy( custom ) {
+			var copy;
 			// Tests should mock all factors that directly influence the tested code.
-			// For backwards compatibility though we set mw.config to a copy of the live config
-			// and extend it with the (optionally) given custom settings for this test
-			// (instead of starting blank with only the given custmo settings).
-			// This is a shallow copy, so we don't end up with settings taking an array value
-			// extended with the custom settings - setting a config property means you override it,
-			// not extend it.
-			return $.extend( {}, liveConfig, custom );
+			// For backwards compatibility though we set mw.config to a fresh copy of the live
+			// config. This way any modifications made to mw.config during the test will not
+			// affect other tests, nor the global scope outside the test runner.
+			// This is a shallow copy, since overriding an array or object value via "custom"
+			// should replace it. Setting a config property means you override it, not extend it.
+			// NOTE: It is important that we suppress warnings because extend() will also access
+			// deprecated properties and trigger deprecation warnings from mw.log#deprecate.
+			suppressWarnings();
+			copy = $.extend( {}, liveConfig, custom );
+			restoreWarnings();
+
+			return copy;
 		}
 
 		function freshMessagesCopy( custom ) {
 			return $.extend( /*deep=*/true, {}, liveMessages, custom );
 		}
 
-		log = QUnit.urlParams.mwlogenv ? mw.log : function () {};
+		/**
+		 * @param {jQuery.Event} event
+		 * @param {jqXHR} jqXHR
+		 * @param {Object} ajaxOptions
+		 */
+		function trackAjax( event, jqXHR, ajaxOptions ) {
+			ajaxRequests.push( { xhr: jqXHR, options: ajaxOptions } );
+		}
 
 		return function ( localEnv ) {
 			localEnv = $.extend( {
@@ -143,25 +230,69 @@
 
 			return {
 				setup: function () {
-					log( 'MwEnvironment> SETUP    for "' + QUnit.config.current.module
-						+ ': ' + QUnit.config.current.testName + '"' );
 
 					// Greetings, mock environment!
 					mw.config.values = freshConfigCopy( localEnv.config );
 					mw.messages.values = freshMessagesCopy( localEnv.messages );
+					this.suppressWarnings = suppressWarnings;
+					this.restoreWarnings = restoreWarnings;
 
-					localEnv.setup();
+					// Start tracking ajax requests
+					$( document ).on( 'ajaxSend', trackAjax );
+
+					localEnv.setup.call( this );
 				},
 
 				teardown: function () {
-					log( 'MwEnvironment> TEARDOWN for "' + QUnit.config.current.module
-						+ ': ' + QUnit.config.current.testName + '"' );
+					var timers, pending, $activeLen;
 
-					localEnv.teardown();
+					localEnv.teardown.call( this );
+
+					// Stop tracking ajax requests
+					$( document ).off( 'ajaxSend', trackAjax );
 
 					// Farewell, mock environment!
 					mw.config.values = liveConfig;
 					mw.messages.values = liveMessages;
+
+					// As a convenience feature, automatically restore warnings if they're
+					// still suppressed by the end of the test.
+					restoreWarnings();
+
+					// Tests should use fake timers or wait for animations to complete
+					// Check for incomplete animations/requests/etc and throw if there are any.
+					if ( $.timers && $.timers.length !== 0 ) {
+						timers = $.timers.length;
+						$.each( $.timers, function ( i, timer ) {
+							var node = timer.elem;
+							mw.log.warn( 'Unfinished animation #' + i + ' in ' + timer.queue + ' queue on ' +
+								mw.html.element( node.nodeName.toLowerCase(), $( node ).getAttrs() )
+							);
+						} );
+						// Force animations to stop to give the next test a clean start
+						$.fx.stop();
+
+						throw new Error( 'Unfinished animations: ' + timers );
+					}
+
+					// Test should use fake XHR, wait for requests, or call abort()
+					$activeLen = $.active;
+					if ( $activeLen !== undefined && $activeLen !== 0 ) {
+						pending = $.grep( ajaxRequests, function ( ajax ) {
+							return ajax.xhr.state() === 'pending';
+						} );
+						if ( pending.length !== $activeLen ) {
+							mw.log.warn( 'Pending requests does not match jQuery.active count' );
+						}
+						// Force requests to stop to give the next test a clean start
+						$.each( pending, function ( i, ajax ) {
+							mw.log.warn( 'Pending AJAX request #' + i, ajax.options );
+							ajax.xhr.abort();
+						} );
+						ajaxRequests = [];
+
+						throw new Error( 'Pending AJAX requests: ' + pending.length + ' (active: ' + $activeLen + ')' );
+					}
 				}
 			};
 		};
@@ -196,12 +327,12 @@
 	function getDomStructure( node ) {
 		var $node, children, processedChildren, i, len, el;
 		$node = $( node );
-		if ( node.nodeType === ELEMENT_NODE ) {
+		if ( node.nodeType === Node.ELEMENT_NODE ) {
 			children = $node.contents();
 			processedChildren = [];
 			for ( i = 0, len = children.length; i < len; i++ ) {
-				el = children[i];
-				if ( el.nodeType === ELEMENT_NODE || el.nodeType === TEXT_NODE ) {
+				el = children[ i ];
+				if ( el.nodeType === Node.ELEMENT_NODE || el.nodeType === Node.TEXT_NODE ) {
 					processedChildren.push( getDomStructure( el ) );
 				}
 			}
@@ -223,7 +354,7 @@
 	 * @param {string} html HTML markup for one or more nodes.
 	 */
 	function getHtmlStructure( html ) {
-		var el = $( '<div>' ).append( html )[0];
+		var el = $( '<div>' ).append( html )[ 0 ];
 		return getDomStructure( el );
 	}
 
@@ -314,14 +445,12 @@
 	 * Small test suite to confirm proper functionality of the utilities and
 	 * initializations defined above in this file.
 	 */
-	envExecCount = 0;
-	QUnit.module( 'mediawiki.tests.qunit.testrunner', QUnit.newMwEnvironment( {
+	QUnit.module( 'test.mediawiki.qunit.testrunner', QUnit.newMwEnvironment( {
 		setup: function () {
-			envExecCount += 1;
 			this.mwHtmlLive = mw.html;
 			mw.html = {
 				escape: function () {
-					return 'mocked-' + envExecCount;
+					return 'mocked';
 				}
 			};
 		},
@@ -337,7 +466,7 @@
 	} ) );
 
 	QUnit.test( 'Setup', 3, function ( assert ) {
-		assert.equal( mw.html.escape( 'foo' ), 'mocked-1', 'extra setup() callback was ran.' );
+		assert.equal( mw.html.escape( 'foo' ), 'mocked', 'setup() callback was ran.' );
 		assert.equal( mw.config.get( 'testVar' ), 'foo', 'config object applied' );
 		assert.equal( mw.messages.get( 'testMsg' ), 'Foo.', 'messages object applied' );
 
@@ -345,8 +474,7 @@
 		mw.messages.set( 'testMsg', 'Bar.' );
 	} );
 
-	QUnit.test( 'Teardown', 3, function ( assert ) {
-		assert.equal( mw.html.escape( 'foo' ), 'mocked-2', 'extra setup() callback was re-ran.' );
+	QUnit.test( 'Teardown', 2, function ( assert ) {
 		assert.equal( mw.config.get( 'testVar' ), 'foo', 'config object restored and re-applied after test()' );
 		assert.equal( mw.messages.get( 'testMsg' ), 'Foo.', 'messages object restored and re-applied after test()' );
 	} );
@@ -358,11 +486,11 @@
 			missing = [];
 
 		for ( i = 0, len = modules.length; i < len; i++ ) {
-			state = mw.loader.getState( modules[i] );
+			state = mw.loader.getState( modules[ i ] );
 			if ( state === 'error' ) {
-				error.push( modules[i] );
+				error.push( modules[ i ] );
 			} else if ( state === 'missing' ) {
-				missing.push( modules[i] );
+				missing.push( modules[ i ] );
 			}
 		}
 
@@ -420,10 +548,10 @@
 
 	} );
 
-	QUnit.module( 'mediawiki.tests.qunit.testrunner-after', QUnit.newMwEnvironment() );
+	QUnit.module( 'test.mediawiki.qunit.testrunner-after', QUnit.newMwEnvironment() );
 
 	QUnit.test( 'Teardown', 3, function ( assert ) {
-		assert.equal( mw.html.escape( '<' ), '&lt;', 'extra teardown() callback was ran.' );
+		assert.equal( mw.html.escape( '<' ), '&lt;', 'teardown() callback was ran.' );
 		assert.equal( mw.config.get( 'testVar' ), null, 'config object restored to live in next module()' );
 		assert.equal( mw.messages.get( 'testMsg' ), null, 'messages object restored to live in next module()' );
 	} );

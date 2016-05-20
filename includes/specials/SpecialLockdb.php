@@ -27,10 +27,14 @@
  * @ingroup SpecialPage
  */
 class SpecialLockdb extends FormSpecialPage {
-	var $reason = '';
+	protected $reason = '';
 
 	public function __construct() {
 		parent::__construct( 'Lockdb', 'siteadmin' );
+	}
+
+	public function doesWrites() {
+		return false;
 	}
 
 	public function requiresWrite() {
@@ -38,46 +42,47 @@ class SpecialLockdb extends FormSpecialPage {
 	}
 
 	public function checkExecutePermissions( User $user ) {
-		global $wgReadOnlyFile;
-
 		parent::checkExecutePermissions( $user );
 		# If the lock file isn't writable, we can do sweet bugger all
-		if ( !is_writable( dirname( $wgReadOnlyFile ) ) ) {
+		if ( !is_writable( dirname( $this->getConfig()->get( 'ReadOnlyFile' ) ) ) ) {
 			throw new ErrorPageError( 'lockdb', 'lockfilenotwritable' );
+		}
+		if ( file_exists( $this->getConfig()->get( 'ReadOnlyFile' ) ) ) {
+			throw new ErrorPageError( 'lockdb', 'databaselocked' );
 		}
 	}
 
 	protected function getFormFields() {
-		return array(
-			'Reason' => array(
+		return [
+			'Reason' => [
 				'type' => 'textarea',
 				'rows' => 4,
 				'vertical-label' => true,
 				'label-message' => 'enterlockreason',
-			),
-			'Confirm' => array(
+			],
+			'Confirm' => [
 				'type' => 'toggle',
 				'label-message' => 'lockconfirm',
-			),
-		);
+			],
+		];
 	}
 
 	protected function alterForm( HTMLForm $form ) {
-		$form->setWrapperLegend( false );
-		$form->setHeaderText( $this->msg( 'lockdbtext' )->parseAsBlock() );
-		$form->setSubmitTextMsg( 'lockbtn' );
+		$form->setWrapperLegend( false )
+			->setHeaderText( $this->msg( 'lockdbtext' )->parseAsBlock() )
+			->setSubmitTextMsg( 'lockbtn' );
 	}
 
 	public function onSubmit( array $data ) {
-		global $wgContLang, $wgReadOnlyFile;
+		global $wgContLang;
 
 		if ( !$data['Confirm'] ) {
 			return Status::newFatal( 'locknoconfirm' );
 		}
 
-		wfSuppressWarnings();
-		$fp = fopen( $wgReadOnlyFile, 'w' );
-		wfRestoreWarnings();
+		MediaWiki\suppressWarnings();
+		$fp = fopen( $this->getConfig()->get( 'ReadOnlyFile' ), 'w' );
+		MediaWiki\restoreWarnings();
 
 		if ( false === $fp ) {
 			# This used to show a file not found error, but the likeliest reason for fopen()
@@ -101,6 +106,10 @@ class SpecialLockdb extends FormSpecialPage {
 		$out = $this->getOutput();
 		$out->addSubtitle( $this->msg( 'lockdbsuccesssub' ) );
 		$out->addWikiMsg( 'lockdbsuccesstext' );
+	}
+
+	protected function getDisplayFormat() {
+		return 'ooui';
 	}
 
 	protected function getGroupName() {

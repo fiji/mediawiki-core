@@ -14,8 +14,6 @@ class SearchEngineTest extends MediaWikiLangTestCase {
 	 */
 	protected $search;
 
-	protected $pageList;
-
 	/**
 	 * Checks for database type & version.
 	 * Will skip current test if DB does not support search.
@@ -33,13 +31,9 @@ class SearchEngineTest extends MediaWikiLangTestCase {
 		}
 
 		$searchType = $this->db->getSearchEngine();
-		$this->setMwGlobals( array(
+		$this->setMwGlobals( [
 			'wgSearchType' => $searchType
-		) );
-
-		if ( !isset( self::$pageList ) ) {
-			$this->addPages();
-		}
+		] );
 
 		$this->search = new $searchType( $this->db );
 	}
@@ -50,29 +44,32 @@ class SearchEngineTest extends MediaWikiLangTestCase {
 		parent::tearDown();
 	}
 
-	protected function addPages() {
+	public function addDBDataOnce() {
 		if ( !$this->isWikitextNS( NS_MAIN ) ) {
 			// @todo cover the case of non-wikitext content in the main namespace
 			return;
 		}
 
-		$this->insertPage( "Not_Main_Page", "This is not a main page", 0 );
-		$this->insertPage( 'Talk:Not_Main_Page', 'This is not a talk page to the main page, see [[smithee]]', 1 );
-		$this->insertPage( 'Smithee', 'A smithee is one who smiths. See also [[Alan Smithee]]', 0 );
-		$this->insertPage( 'Talk:Smithee', 'This article sucks.', 1 );
-		$this->insertPage( 'Unrelated_page', 'Nothing in this page is about the S word.', 0 );
-		$this->insertPage( 'Another_page', 'This page also is unrelated.', 0 );
-		$this->insertPage( 'Help:Help', 'Help me!', 4 );
-		$this->insertPage( 'Thppt', 'Blah blah', 0 );
-		$this->insertPage( 'Alan_Smithee', 'yum', 0 );
-		$this->insertPage( 'Pages', 'are\'food', 0 );
-		$this->insertPage( 'HalfOneUp', 'AZ', 0 );
-		$this->insertPage( 'FullOneUp', 'ＡＺ', 0 );
-		$this->insertPage( 'HalfTwoLow', 'az', 0 );
-		$this->insertPage( 'FullTwoLow', 'ａｚ', 0 );
-		$this->insertPage( 'HalfNumbers', '1234567890', 0 );
-		$this->insertPage( 'FullNumbers', '１２３４５６７８９０', 0 );
-		$this->insertPage( 'DomainName', 'example.com', 0 );
+		$this->insertPage( 'Not_Main_Page', 'This is not a main page' );
+		$this->insertPage(
+			'Talk:Not_Main_Page',
+			'This is not a talk page to the main page, see [[smithee]]'
+		);
+		$this->insertPage( 'Smithee', 'A smithee is one who smiths. See also [[Alan Smithee]]' );
+		$this->insertPage( 'Talk:Smithee', 'This article sucks.' );
+		$this->insertPage( 'Unrelated_page', 'Nothing in this page is about the S word.' );
+		$this->insertPage( 'Another_page', 'This page also is unrelated.' );
+		$this->insertPage( 'Help:Help', 'Help me!' );
+		$this->insertPage( 'Thppt', 'Blah blah' );
+		$this->insertPage( 'Alan_Smithee', 'yum' );
+		$this->insertPage( 'Pages', 'are\'food' );
+		$this->insertPage( 'HalfOneUp', 'AZ' );
+		$this->insertPage( 'FullOneUp', 'ＡＺ' );
+		$this->insertPage( 'HalfTwoLow', 'az' );
+		$this->insertPage( 'FullTwoLow', 'ａｚ' );
+		$this->insertPage( 'HalfNumbers', '1234567890' );
+		$this->insertPage( 'FullNumbers', '１２３４５６７８９０' );
+		$this->insertPage( 'DomainName', 'example.com' );
 	}
 
 	protected function fetchIds( $results ) {
@@ -82,7 +79,7 @@ class SearchEngineTest extends MediaWikiLangTestCase {
 		}
 		$this->assertTrue( is_object( $results ) );
 
-		$matches = array();
+		$matches = [];
 		$row = $results->next();
 		while ( $row ) {
 			$matches[] = $row->getTitle()->getPrefixedText();
@@ -97,85 +94,61 @@ class SearchEngineTest extends MediaWikiLangTestCase {
 		return $matches;
 	}
 
-	/**
-	 * Insert a new page
-	 *
-	 * @param $pageName String: page name
-	 * @param $text String: page's content
-	 * @param $n Integer: unused
-	 */
-	protected function insertPage( $pageName, $text, $ns ) {
-		$title = Title::newFromText( $pageName, $ns );
-
-		$user = User::newFromName( 'WikiSysop' );
-		$comment = 'Search Test';
-
-		// avoid memory leak...?
-		LinkCache::singleton()->clear();
-
-		$page = WikiPage::factory( $title );
-		$page->doEditContent( ContentHandler::makeContent( $text, $title ), $comment, 0, false, $user );
-
-		$this->pageList[] = array( $title, $page->getId() );
-
-		return true;
-	}
-
 	public function testFullWidth() {
 		$this->assertEquals(
-			array( 'FullOneUp', 'FullTwoLow', 'HalfOneUp', 'HalfTwoLow' ),
+			[ 'FullOneUp', 'FullTwoLow', 'HalfOneUp', 'HalfTwoLow' ],
 			$this->fetchIds( $this->search->searchText( 'AZ' ) ),
 			"Search for normalized from Half-width Upper" );
 		$this->assertEquals(
-			array( 'FullOneUp', 'FullTwoLow', 'HalfOneUp', 'HalfTwoLow' ),
+			[ 'FullOneUp', 'FullTwoLow', 'HalfOneUp', 'HalfTwoLow' ],
 			$this->fetchIds( $this->search->searchText( 'az' ) ),
 			"Search for normalized from Half-width Lower" );
 		$this->assertEquals(
-			array( 'FullOneUp', 'FullTwoLow', 'HalfOneUp', 'HalfTwoLow' ),
+			[ 'FullOneUp', 'FullTwoLow', 'HalfOneUp', 'HalfTwoLow' ],
 			$this->fetchIds( $this->search->searchText( 'ＡＺ' ) ),
 			"Search for normalized from Full-width Upper" );
 		$this->assertEquals(
-			array( 'FullOneUp', 'FullTwoLow', 'HalfOneUp', 'HalfTwoLow' ),
+			[ 'FullOneUp', 'FullTwoLow', 'HalfOneUp', 'HalfTwoLow' ],
 			$this->fetchIds( $this->search->searchText( 'ａｚ' ) ),
 			"Search for normalized from Full-width Lower" );
 	}
 
 	public function testTextSearch() {
 		$this->assertEquals(
-			array( 'Smithee' ),
+			[ 'Smithee' ],
 			$this->fetchIds( $this->search->searchText( 'smithee' ) ),
 			"Plain search failed" );
 	}
 
 	public function testTextPowerSearch() {
-		$this->search->setNamespaces( array( 0, 1, 4 ) );
+		$this->search->setNamespaces( [ 0, 1, 4 ] );
 		$this->assertEquals(
-			array(
+			[
 				'Smithee',
 				'Talk:Not Main Page',
-			),
+			],
 			$this->fetchIds( $this->search->searchText( 'smithee' ) ),
 			"Power search failed" );
 	}
 
 	public function testTitleSearch() {
 		$this->assertEquals(
-			array(
+			[
 				'Alan Smithee',
 				'Smithee',
-			),
+			],
 			$this->fetchIds( $this->search->searchTitle( 'smithee' ) ),
 			"Title search failed" );
 	}
 
 	public function testTextTitlePowerSearch() {
-		$this->search->setNamespaces( array( 0, 1, 4 ) );
+		$this->search->setNamespaces( [ 0, 1, 4 ] );
 		$this->assertEquals(
-			array(
+			[
 				'Alan Smithee',
 				'Smithee',
 				'Talk:Smithee',
-			),
+			],
 			$this->fetchIds( $this->search->searchTitle( 'smithee' ) ),
 			"Title power search failed" );
 	}

@@ -34,6 +34,32 @@ class MWContentSerializationException extends MWException {
 }
 
 /**
+ * Exception thrown when an unregistered content model is requested. This error
+ * can be triggered by user input, so a separate exception class is provided so
+ * callers can substitute a context-specific, internationalised error message.
+ *
+ * @ingroup Content
+ * @since 1.27
+ */
+class MWUnknownContentModelException extends MWException {
+	/** @var string The name of the unknown content model */
+	private $modelId;
+
+	/** @param string $modelId */
+	function __construct( $modelId ) {
+		parent::__construct( "The content model '$modelId' is not registered on this wiki.\n" .
+			'See https://www.mediawiki.org/wiki/Content_handlers to find out which extensions ' .
+			'handle this content model.' );
+		$this->modelId = $modelId;
+	}
+
+	/** @return string */
+	public function getModelId() {
+		return $this->modelId;
+	}
+}
+
+/**
  * A content handler knows how do deal with a specific type of content on a wiki
  * page. Content is stored in the database in a serialized form (using a
  * serialization format a.k.a. MIME type) and is unserialized into its native
@@ -85,10 +111,11 @@ abstract class ContentHandler {
 	 *
 	 * @since 1.21
 	 *
-	 * @param $content Content|null
-	 * @return null|string the textual form of $content, if available
-	 * @throws MWException if $content is not an instance of TextContent and
-	 *   $wgContentHandlerTextFallback was set to 'fail'.
+	 * @param Content $content
+	 *
+	 * @throws MWException If the content is not an instance of TextContent and
+	 * wgContentHandlerTextFallback was set to 'fail'.
+	 * @return string|null Textual form of the content, if available.
 	 */
 	public static function getContentText( Content $content = null ) {
 		global $wgContentHandlerTextFallback;
@@ -127,24 +154,21 @@ abstract class ContentHandler {
 	 *
 	 * @since 1.21
 	 *
-	 * @param string $text the textual representation, will be
+	 * @param string $text The textual representation, will be
 	 *    unserialized to create the Content object
-	 * @param $title null|Title the title of the page this text belongs to.
+	 * @param Title $title The title of the page this text belongs to.
 	 *    Required if $modelId is not provided.
-	 * @param $modelId null|string the model to deserialize to. If not provided,
+	 * @param string $modelId The model to deserialize to. If not provided,
 	 *    $title->getContentModel() is used.
-	 * @param $format null|string the format to use for deserialization. If not
+	 * @param string $format The format to use for deserialization. If not
 	 *    given, the model's default format is used.
 	 *
-	 * @throws MWException
-	 * @return Content a Content object representing $text
-	 *
-	 * @throws MWException if $model or $format is not supported or if $text can
-	 *    not be unserialized using $format.
+	 * @throws MWException If model ID or format is not supported or if the text can not be
+	 * unserialized using the format.
+	 * @return Content A Content object representing the text.
 	 */
 	public static function makeContent( $text, Title $title = null,
-		$modelId = null, $format = null
-	) {
+		$modelId = null, $format = null ) {
 		if ( is_null( $modelId ) ) {
 			if ( is_null( $title ) ) {
 				throw new MWException( "Must provide a Title object or a content model ID." );
@@ -188,8 +212,9 @@ abstract class ContentHandler {
 	 *
 	 * @since 1.21
 	 *
-	 * @param $title Title
-	 * @return null|string default model name for the page given by $title
+	 * @param Title $title
+	 *
+	 * @return string Default model name for the page given by $title
 	 */
 	public static function getDefaultModelFor( Title $title ) {
 		// NOTE: this method must not rely on $title->getContentModel() directly or indirectly,
@@ -202,35 +227,35 @@ abstract class ContentHandler {
 		$model = MWNamespace::getNamespaceContentModel( $ns );
 
 		// Hook can determine default model
-		if ( !wfRunHooks( 'ContentHandlerDefaultModelFor', array( $title, &$model ) ) ) {
+		if ( !Hooks::run( 'ContentHandlerDefaultModelFor', [ $title, &$model ] ) ) {
 			if ( !is_null( $model ) ) {
 				return $model;
 			}
 		}
 
-		// Could this page contain custom CSS or JavaScript, based on the title?
-		$isCssOrJsPage = NS_MEDIAWIKI == $ns && preg_match( '!\.(css|js)$!u', $title->getText(), $m );
-		if ( $isCssOrJsPage ) {
+		// Could this page contain code based on the title?
+		$isCodePage = NS_MEDIAWIKI == $ns && preg_match( '!\.(css|js|json)$!u', $title->getText(), $m );
+		if ( $isCodePage ) {
 			$ext = $m[1];
 		}
 
 		// Hook can force JS/CSS
-		wfRunHooks( 'TitleIsCssOrJsPage', array( $title, &$isCssOrJsPage ) );
+		Hooks::run( 'TitleIsCssOrJsPage', [ $title, &$isCodePage ], '1.25' );
 
-		// Is this a .css subpage of a user page?
-		$isJsCssSubpage = NS_USER == $ns
-			&& !$isCssOrJsPage
-			&& preg_match( "/\\/.*\\.(js|css)$/", $title->getText(), $m );
-		if ( $isJsCssSubpage ) {
+		// Is this a user subpage containing code?
+		$isCodeSubpage = NS_USER == $ns
+			&& !$isCodePage
+			&& preg_match( "/\\/.*\\.(js|css|json)$/", $title->getText(), $m );
+		if ( $isCodeSubpage ) {
 			$ext = $m[1];
 		}
 
 		// Is this wikitext, according to $wgNamespaceContentModels or the DefaultModelFor hook?
 		$isWikitext = is_null( $model ) || $model == CONTENT_MODEL_WIKITEXT;
-		$isWikitext = $isWikitext && !$isCssOrJsPage && !$isJsCssSubpage;
+		$isWikitext = $isWikitext && !$isCodePage && !$isCodeSubpage;
 
 		// Hook can override $isWikitext
-		wfRunHooks( 'TitleIsWikitextPage', array( $title, &$isWikitext ) );
+		Hooks::run( 'TitleIsWikitextPage', [ $title, &$isWikitext ], '1.25' );
 
 		if ( !$isWikitext ) {
 			switch ( $ext ) {
@@ -238,6 +263,8 @@ abstract class ContentHandler {
 					return CONTENT_MODEL_JAVASCRIPT;
 				case 'css':
 					return CONTENT_MODEL_CSS;
+				case 'json':
+					return CONTENT_MODEL_JSON;
 				default:
 					return is_null( $model ) ? CONTENT_MODEL_TEXT : $model;
 			}
@@ -253,7 +280,8 @@ abstract class ContentHandler {
 	 *
 	 * @since 1.21
 	 *
-	 * @param $title Title
+	 * @param Title $title
+	 *
 	 * @return ContentHandler
 	 */
 	public static function getForTitle( Title $title ) {
@@ -268,7 +296,8 @@ abstract class ContentHandler {
 	 *
 	 * @since 1.21
 	 *
-	 * @param $content Content
+	 * @param Content $content
+	 *
 	 * @return ContentHandler
 	 */
 	public static function getForContent( Content $content ) {
@@ -303,9 +332,10 @@ abstract class ContentHandler {
 	 *
 	 * @param string $modelId The ID of the content model for which to get a
 	 *    handler. Use CONTENT_MODEL_XXX constants.
-	 * @return ContentHandler The ContentHandler singleton for handling the
-	 *    model given by $modelId
-	 * @throws MWException if no handler is known for $modelId.
+	 *
+	 * @throws MWException For internal errors and problems in the configuration.
+	 * @throws MWUnknownContentModelException If no handler is known for the model ID.
+	 * @return ContentHandler The ContentHandler singleton for handling the model given by the ID.
 	 */
 	public static function getForModelID( $modelId ) {
 		global $wgContentHandlers;
@@ -317,21 +347,26 @@ abstract class ContentHandler {
 		if ( empty( $wgContentHandlers[$modelId] ) ) {
 			$handler = null;
 
-			wfRunHooks( 'ContentHandlerForModelID', array( $modelId, &$handler ) );
+			Hooks::run( 'ContentHandlerForModelID', [ $modelId, &$handler ] );
 
 			if ( $handler === null ) {
-				throw new MWException( "No handler for model '$modelId' registered in \$wgContentHandlers" );
+				throw new MWUnknownContentModelException( $modelId );
 			}
 
 			if ( !( $handler instanceof ContentHandler ) ) {
 				throw new MWException( "ContentHandlerForModelID must supply a ContentHandler instance" );
 			}
 		} else {
-			$class = $wgContentHandlers[$modelId];
-			$handler = new $class( $modelId );
+			$classOrCallback = $wgContentHandlers[$modelId];
+
+			if ( is_callable( $classOrCallback ) ) {
+				$handler = call_user_func( $classOrCallback, $modelId );
+			} else {
+				$handler = new $classOrCallback( $modelId );
+			}
 
 			if ( !( $handler instanceof ContentHandler ) ) {
-				throw new MWException( "$class from \$wgContentHandlers is not " .
+				throw new MWException( "$classOrCallback from \$wgContentHandlers is not " .
 					"compatible with ContentHandler" );
 			}
 		}
@@ -352,16 +387,20 @@ abstract class ContentHandler {
 	 *
 	 * @param string $name The content model ID, as given by a CONTENT_MODEL_XXX
 	 *    constant or returned by Revision::getContentModel().
+	 * @param Language|null $lang The language to parse the message in (since 1.26)
 	 *
+	 * @throws MWException If the model ID isn't known.
 	 * @return string The content model's localized name.
-	 * @throws MWException if the model id isn't known.
 	 */
-	public static function getLocalizedName( $name ) {
+	public static function getLocalizedName( $name, Language $lang = null ) {
 		// Messages: content-model-wikitext, content-model-text,
 		// content-model-javascript, content-model-css
 		$key = "content-model-$name";
 
 		$msg = wfMessage( $key );
+		if ( $lang ) {
+			$msg->inLanguage( $lang );
+		}
 
 		return $msg->exists() ? $msg->plain() : $name;
 	}
@@ -375,7 +414,7 @@ abstract class ContentHandler {
 	public static function getAllContentFormats() {
 		global $wgContentHandlers;
 
-		$formats = array();
+		$formats = [];
 
 		foreach ( $wgContentHandlers as $model => $class ) {
 			$handler = ContentHandler::getForModelID( $model );
@@ -389,7 +428,14 @@ abstract class ContentHandler {
 
 	// ------------------------------------------------------------------------
 
+	/**
+	 * @var string
+	 */
 	protected $mModelID;
+
+	/**
+	 * @var string[]
+	 */
 	protected $mSupportedFormats;
 
 	/**
@@ -398,7 +444,7 @@ abstract class ContentHandler {
 	 * provided as literals by subclass's constructors.
 	 *
 	 * @param string $modelId (use CONTENT_MODEL_XXX constants).
-	 * @param array $formats List for supported serialization formats
+	 * @param string[] $formats List for supported serialization formats
 	 *    (typically as MIME types)
 	 */
 	public function __construct( $modelId, $formats ) {
@@ -415,22 +461,53 @@ abstract class ContentHandler {
 	 *
 	 * @since 1.21
 	 *
-	 * @param $content Content The Content object to serialize
-	 * @param $format null|String The desired serialization format
+	 * @param Content $content The Content object to serialize
+	 * @param string $format The desired serialization format
+	 *
 	 * @return string Serialized form of the content
 	 */
 	abstract public function serializeContent( Content $content, $format = null );
+
+	/**
+	 * Applies transformations on export (returns the blob unchanged per default).
+	 * Subclasses may override this to perform transformations such as conversion
+	 * of legacy formats or filtering of internal meta-data.
+	 *
+	 * @param string $blob The blob to be exported
+	 * @param string|null $format The blob's serialization format
+	 *
+	 * @return string
+	 */
+	public function exportTransform( $blob, $format = null ) {
+		return $blob;
+	}
 
 	/**
 	 * Unserializes a Content object of the type supported by this ContentHandler.
 	 *
 	 * @since 1.21
 	 *
-	 * @param string $blob serialized form of the content
-	 * @param $format null|String the format used for serialization
-	 * @return Content the Content object created by deserializing $blob
+	 * @param string $blob Serialized form of the content
+	 * @param string $format The format used for serialization
+	 *
+	 * @return Content The Content object created by deserializing $blob
 	 */
 	abstract public function unserializeContent( $blob, $format = null );
+
+	/**
+	 * Apply import transformation (per default, returns $blob unchanged).
+	 * This gives subclasses an opportunity to transform data blobs on import.
+	 *
+	 * @since 1.24
+	 *
+	 * @param string $blob
+	 * @param string|null $format
+	 *
+	 * @return string
+	 */
+	public function importTransform( $blob, $format = null ) {
+		return $blob;
+	}
 
 	/**
 	 * Creates an empty Content object of the type supported by this
@@ -444,7 +521,7 @@ abstract class ContentHandler {
 
 	/**
 	 * Creates a new Content object that acts as a redirect to the given page,
-	 * or null of redirects are not supported by this content model.
+	 * or null if redirects are not supported by this content model.
 	 *
 	 * This default implementation always returns null. Subclasses supporting redirects
 	 * must override this method.
@@ -454,10 +531,10 @@ abstract class ContentHandler {
 	 *
 	 * @since 1.21
 	 *
-	 * @param Title $destination the page to redirect to.
-	 * @param string $text text to include in the redirect, if possible.
+	 * @param Title $destination The page to redirect to.
+	 * @param string $text Text to include in the redirect, if possible.
 	 *
-	 * @return Content
+	 * @return Content Always null.
 	 */
 	public function makeRedirectContent( Title $destination, $text = '' ) {
 		return null;
@@ -469,21 +546,19 @@ abstract class ContentHandler {
 	 *
 	 * @since 1.21
 	 *
-	 * @return String The model ID
+	 * @return string The model ID
 	 */
 	public function getModelID() {
 		return $this->mModelID;
 	}
 
 	/**
-	 * Throws an MWException if $model_id is not the ID of the content model
-	 * supported by this ContentHandler.
-	 *
 	 * @since 1.21
 	 *
 	 * @param string $model_id The model to check
 	 *
-	 * @throws MWException
+	 * @throws MWException If the model ID is not the ID of the content model supported by this
+	 * ContentHandler.
 	 */
 	protected function checkModelID( $model_id ) {
 		if ( $model_id !== $this->mModelID ) {
@@ -500,7 +575,7 @@ abstract class ContentHandler {
 	 *
 	 * @since 1.21
 	 *
-	 * @return array of serialization formats as MIME type like strings
+	 * @return string[] List of serialization formats as MIME type like strings
 	 */
 	public function getSupportedFormats() {
 		return $this->mSupportedFormats;
@@ -515,7 +590,7 @@ abstract class ContentHandler {
 	 *
 	 * @since 1.21
 	 *
-	 * @return string the name of the default serialization format as a MIME type
+	 * @return string The name of the default serialization format as a MIME type
 	 */
 	public function getDefaultFormat() {
 		return $this->mSupportedFormats[0];
@@ -530,11 +605,11 @@ abstract class ContentHandler {
 	 *
 	 * @since 1.21
 	 *
-	 * @param string $format the serialization format to check
+	 * @param string $format The serialization format to check
+	 *
 	 * @return bool
 	 */
 	public function isSupportedFormat( $format ) {
-
 		if ( !$format ) {
 			return true; // this means "use the default"
 		}
@@ -543,13 +618,11 @@ abstract class ContentHandler {
 	}
 
 	/**
-	 * Throws an MWException if isSupportedFormat( $format ) is not true.
-	 * Convenient for checking whether a format provided as a parameter is
-	 * actually supported.
+	 * Convenient for checking whether a format provided as a parameter is actually supported.
 	 *
-	 * @param string $format the serialization format to check
+	 * @param string $format The serialization format to check
 	 *
-	 * @throws MWException
+	 * @throws MWException If the format is not supported by this content handler.
 	 */
 	protected function checkFormat( $format ) {
 		if ( !$this->isSupportedFormat( $format ) ) {
@@ -568,10 +641,15 @@ abstract class ContentHandler {
 	 *
 	 * @since 1.21
 	 *
-	 * @return Array
+	 * @return array An array mapping action names (typically "view", "edit", "history" etc.) to
+	 *  either the full qualified class name of an Action class, a callable taking ( Page $page,
+	 *  IContextSource $context = null ) as parameters and returning an Action object, or an actual
+	 *  Action object. An empty array in this default implementation.
+	 *
+	 * @see Action::factory
 	 */
 	public function getActionOverrides() {
-		return array();
+		return [];
 	}
 
 	/**
@@ -579,23 +657,27 @@ abstract class ContentHandler {
 	 *
 	 * @since 1.21
 	 *
-	 * @param $context IContextSource context to use, anything else will be
-	 *    ignored
-	 * @param $old Integer Old ID we want to show and diff with.
-	 * @param int|string $new String either 'prev' or 'next'.
-	 * @param $rcid Integer ??? FIXME (default 0)
-	 * @param $refreshCache boolean If set, refreshes the diff cache
-	 * @param $unhide boolean If set, allow viewing deleted revs
+	 * @param IContextSource $context Context to use, anything else will be ignored.
+	 * @param int $old Revision ID we want to show and diff with.
+	 * @param int|string $new Either a revision ID or one of the strings 'cur', 'prev' or 'next'.
+	 * @param int $rcid FIXME: Deprecated, no longer used. Defaults to 0.
+	 * @param bool $refreshCache If set, refreshes the diff cache. Defaults to false.
+	 * @param bool $unhide If set, allow viewing deleted revs. Defaults to false.
 	 *
 	 * @return DifferenceEngine
 	 */
-	public function createDifferenceEngine( IContextSource $context,
-		$old = 0, $new = 0,
-		$rcid = 0, # FIXME: use everywhere!
-		$refreshCache = false, $unhide = false
-	) {
-		$diffEngineClass = $this->getDiffEngineClass();
+	public function createDifferenceEngine( IContextSource $context, $old = 0, $new = 0,
+		$rcid = 0, // FIXME: Deprecated, no longer used
+		$refreshCache = false, $unhide = false ) {
 
+		// hook: get difference engine
+		$differenceEngine = null;
+		if ( !Hooks::run( 'GetDifferenceEngine',
+			[ $context, $old, $new, $refreshCache, $unhide, &$differenceEngine ]
+		) ) {
+			return $differenceEngine;
+		}
+		$diffEngineClass = $this->getDiffEngineClass();
 		return new $diffEngineClass( $context, $old, $new, $rcid, $refreshCache, $unhide );
 	}
 
@@ -613,10 +695,10 @@ abstract class ContentHandler {
 	 *
 	 * @since 1.21
 	 *
-	 * @param Title $title the page to determine the language for.
-	 * @param Content|null $content the page's content, if you have it handy, to avoid reloading it.
+	 * @param Title $title The page to determine the language for.
+	 * @param Content $content The page's content, if you have it handy, to avoid reloading it.
 	 *
-	 * @return Language the page's language
+	 * @return Language The page's language
 	 */
 	public function getPageLanguage( Title $title, Content $content = null ) {
 		global $wgContLang, $wgLang;
@@ -628,7 +710,7 @@ abstract class ContentHandler {
 			$pageLang = wfGetLangObj( $lang );
 		}
 
-		wfRunHooks( 'PageContentLanguage', array( $title, &$pageLang, $wgLang ) );
+		Hooks::run( 'PageContentLanguage', [ $title, &$pageLang, $wgLang ] );
 
 		return wfGetLangObj( $pageLang );
 	}
@@ -648,10 +730,10 @@ abstract class ContentHandler {
 	 *
 	 * @since 1.21
 	 *
-	 * @param Title $title the page to determine the language for.
-	 * @param Content|null $content the page's content, if you have it handy, to avoid reloading it.
+	 * @param Title $title The page to determine the language for.
+	 * @param Content $content The page's content, if you have it handy, to avoid reloading it.
 	 *
-	 * @return Language the page's language for viewing
+	 * @return Language The page's language for viewing
 	 */
 	public function getPageViewLanguage( Title $title, Content $content = null ) {
 		$pageLang = $this->getPageLanguage( $title, $content );
@@ -677,17 +759,17 @@ abstract class ContentHandler {
 	 * typically based on the namespace or some other aspect of the title, such as a special suffix
 	 * (e.g. ".svg" for SVG content).
 	 *
-	 * @note: this calls the ContentHandlerCanBeUsedOn hook which may be used to override which
+	 * @note this calls the ContentHandlerCanBeUsedOn hook which may be used to override which
 	 * content model can be used where.
 	 *
-	 * @param Title $title the page's title.
+	 * @param Title $title The page's title.
 	 *
-	 * @return bool true if content of this kind can be used on the given page, false otherwise.
+	 * @return bool True if content of this kind can be used on the given page, false otherwise.
 	 */
 	public function canBeUsedOn( Title $title ) {
 		$ok = true;
 
-		wfRunHooks( 'ContentModelCanBeUsedOn', array( $this->getModelID(), $title, &$ok ) );
+		Hooks::run( 'ContentModelCanBeUsedOn', [ $this->getModelID(), $title, &$ok ] );
 
 		return $ok;
 	}
@@ -700,23 +782,22 @@ abstract class ContentHandler {
 	 * @return string
 	 */
 	protected function getDiffEngineClass() {
-		return 'DifferenceEngine';
+		return DifferenceEngine::class;
 	}
 
 	/**
-	 * Attempts to merge differences between three versions.
-	 * Returns a new Content object for a clean merge and false for failure or
-	 * a conflict.
+	 * Attempts to merge differences between three versions. Returns a new
+	 * Content object for a clean merge and false for failure or a conflict.
 	 *
 	 * This default implementation always returns false.
 	 *
 	 * @since 1.21
 	 *
-	 * @param $oldContent Content|string  String
-	 * @param $myContent Content|string   String
-	 * @param $yourContent Content|string String
+	 * @param Content $oldContent The page's previous content.
+	 * @param Content $myContent One of the page's conflicting contents.
+	 * @param Content $yourContent One of the page's conflicting contents.
 	 *
-	 * @return Content|Bool
+	 * @return Content|bool Always false.
 	 */
 	public function merge3( Content $oldContent, Content $myContent, Content $yourContent ) {
 		return false;
@@ -727,13 +808,14 @@ abstract class ContentHandler {
 	 *
 	 * @since 1.21
 	 *
-	 * @param $oldContent Content|null: the previous text of the page.
-	 * @param $newContent Content|null: The submitted text of the page.
+	 * @param Content $oldContent The previous text of the page.
+	 * @param Content $newContent The submitted text of the page.
 	 * @param int $flags Bit mask: a bit mask of flags submitted for the edit.
 	 *
 	 * @return string An appropriate auto-summary, or an empty string.
 	 */
-	public function getAutosummary( Content $oldContent = null, Content $newContent = null, $flags ) {
+	public function getAutosummary( Content $oldContent = null, Content $newContent = null,
+		$flags ) {
 		// Decide what kind of auto-summary is needed.
 
 		// Redirect auto-summaries
@@ -789,6 +871,11 @@ abstract class ContentHandler {
 				->inContentLanguage()->text();
 		}
 
+		// New blank article auto-summary
+		if ( $flags & EDIT_NEW && $newContent->isEmpty() ) {
+			return wfMessage( 'autosumm-newblank' )->inContentLanguage()->text();
+		}
+
 		// If we reach this point, there's no applicable auto-summary for our
 		// case, so our auto-summary is empty.
 		return '';
@@ -799,17 +886,18 @@ abstract class ContentHandler {
 	 *
 	 * @since 1.21
 	 *
-	 * @param $title Title: the page's title
-	 * @param &$hasHistory Boolean: whether the page has a history
+	 * @param Title $title The page's title
+	 * @param bool &$hasHistory Whether the page has a history
+	 *
 	 * @return mixed String containing deletion reason or empty string, or
 	 *    boolean false if no revision occurred
 	 *
-	 * @XXX &$hasHistory is extremely ugly, it's here because
+	 * @todo &$hasHistory is extremely ugly, it's here because
 	 * WikiPage::getAutoDeleteReason() and Article::generateReason()
 	 * have it / want it.
 	 */
 	public function getAutoDeleteReason( Title $title, &$hasHistory ) {
-		$dbw = wfGetDB( DB_MASTER );
+		$dbr = wfGetDB( DB_SLAVE );
 
 		// Get the last revision
 		$rev = Revision::newFromTitle( $title );
@@ -839,13 +927,13 @@ abstract class ContentHandler {
 
 		// Find out if there was only one contributor
 		// Only scan the last 20 revisions
-		$res = $dbw->select( 'revision', 'rev_user_text',
-			array(
+		$res = $dbr->select( 'revision', 'rev_user_text',
+			[
 				'rev_page' => $title->getArticleID(),
-				$dbw->bitAnd( 'rev_deleted', Revision::DELETED_USER ) . ' = 0'
-			),
+				$dbr->bitAnd( 'rev_deleted', Revision::DELETED_USER ) . ' = 0'
+			],
 			__METHOD__,
-			array( 'LIMIT' => 20 )
+			[ 'LIMIT' => 20 ]
 		);
 
 		if ( $res === false ) {
@@ -854,7 +942,7 @@ abstract class ContentHandler {
 		}
 
 		$hasHistory = ( $res->numRows() > 1 );
-		$row = $dbw->fetchObject( $res );
+		$row = $dbr->fetchObject( $res );
 
 		if ( $row ) { // $row is false if the only contributor is hidden
 			$onlyAuthor = $row->rev_user_text;
@@ -907,9 +995,9 @@ abstract class ContentHandler {
 	 *
 	 * @since 1.21
 	 *
-	 * @param $current Revision The current text
-	 * @param $undo Revision The revision to undo
-	 * @param $undoafter Revision Must be an earlier revision than $undo
+	 * @param Revision $current The current text
+	 * @param Revision $undo The revision to undo
+	 * @param Revision $undoafter Must be an earlier revision than $undo
 	 *
 	 * @return mixed String on success, false on failure
 	 */
@@ -942,7 +1030,7 @@ abstract class ContentHandler {
 	}
 
 	/**
-	 * Get parser options suitable for rendering the primary article wikitext
+	 * Get parser options suitable for rendering and caching the article
 	 *
 	 * @param IContextSource|User|string $context One of the following:
 	 *        - IContextSource: Use the User and the Language of the provided
@@ -951,8 +1039,6 @@ abstract class ContentHandler {
 	 *                                            so use an IContextSource object if possible.
 	 *        - 'canonical': Canonical options (anonymous user with default
 	 *                                            preferences and content language).
-	 *
-	 * @param IContextSource|User|string $context
 	 *
 	 * @throws MWException
 	 * @return ParserOptions
@@ -978,11 +1064,11 @@ abstract class ContentHandler {
 
 	/**
 	 * Returns true for content models that support caching using the
-	 * ParserCache mechanism. See WikiPage::isParserCacheUsed().
+	 * ParserCache mechanism. See WikiPage::shouldCheckParserCache().
 	 *
 	 * @since 1.21
 	 *
-	 * @return bool
+	 * @return bool Always false.
 	 */
 	public function isParserCacheSupported() {
 		return false;
@@ -995,10 +1081,20 @@ abstract class ContentHandler {
 	 * Content models that return true here should also implement
 	 * Content::getSection, Content::replaceSection, etc. to handle sections..
 	 *
-	 * @return boolean whether sections are supported.
+	 * @return bool Always false.
 	 */
 	public function supportsSections() {
 		return false;
+	}
+
+	/**
+	 * Returns true if this content model supports categories.
+	 * The default implementation returns true.
+	 *
+	 * @return bool Always true.
+	 */
+	public function supportsCategories() {
+		return true;
 	}
 
 	/**
@@ -1008,10 +1104,28 @@ abstract class ContentHandler {
 	 * Content models that return true here should also implement
 	 * ContentHandler::makeRedirectContent to return a Content object.
 	 *
-	 * @return boolean whether redirects are supported.
+	 * @return bool Always false.
 	 */
 	public function supportsRedirects() {
 		return false;
+	}
+
+	/**
+	 * Return true if this content model supports direct editing, such as via EditPage.
+	 *
+	 * @return bool Default is false, and true for TextContent and it's derivatives.
+	 */
+	public function supportsDirectEditing() {
+		return false;
+	}
+
+	/**
+	 * Whether or not this content model supports direct editing via ApiEditPage
+	 *
+	 * @return bool Default is false, and true for TextContent and derivatives.
+	 */
+	public function supportsDirectApiEditing() {
+		return $this->supportsDirectEditing();
 	}
 
 	/**
@@ -1040,17 +1154,17 @@ abstract class ContentHandler {
 	 * hook function, a new Content object is constructed from the new
 	 * text.
 	 *
-	 * @param string $event event name
-	 * @param array $args parameters passed to hook functions
-	 * @param bool $warn whether to log a warning.
+	 * @param string $event Event name
+	 * @param array $args Parameters passed to hook functions
+	 * @param bool $warn Whether to log a warning.
 	 *                    Default to self::$enableDeprecationWarnings.
 	 *                    May be set to false for testing.
 	 *
-	 * @return Boolean True if no handler aborted the hook
+	 * @return bool True if no handler aborted the hook
 	 *
 	 * @see ContentHandler::$enableDeprecationWarnings
 	 */
-	public static function runLegacyHooks( $event, $args = array(),
+	public static function runLegacyHooks( $event, $args = [],
 		$warn = null
 	) {
 
@@ -1067,9 +1181,9 @@ abstract class ContentHandler {
 			// so we can find and fix them.
 
 			$handlers = Hooks::getHandlers( $event );
-			$handlerInfo = array();
+			$handlerInfo = [];
 
-			wfSuppressWarnings();
+			MediaWiki\suppressWarnings();
 
 			foreach ( $handlers as $handler ) {
 				if ( is_array( $handler ) ) {
@@ -1092,15 +1206,15 @@ abstract class ContentHandler {
 				$handlerInfo[] = $info;
 			}
 
-			wfRestoreWarnings();
+			MediaWiki\restoreWarnings();
 
 			wfWarn( "Using obsolete hook $event via ContentHandler::runLegacyHooks()! Handlers: " .
 				implode( ', ', $handlerInfo ), 2 );
 		}
 
 		// convert Content objects to text
-		$contentObjects = array();
-		$contentTexts = array();
+		$contentObjects = [];
+		$contentTexts = [];
 
 		foreach ( $args as $k => $v ) {
 			if ( $v instanceof Content ) {
@@ -1115,7 +1229,7 @@ abstract class ContentHandler {
 		}
 
 		// call the hook functions
-		$ok = wfRunHooks( $event, $args );
+		$ok = Hooks::run( $event, $args );
 
 		// see if the hook changed the text
 		foreach ( $contentTexts as $k => $orig ) {

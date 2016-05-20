@@ -1,6 +1,7 @@
 <?php
+// @codingStandardsIgnoreFile
 /**
- * Html form for user login (since 1.22 with VForm appearance).
+ * HTML form for user login (since 1.22 with VForm appearance).
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +20,8 @@
  *
  * @file
  * @ingroup Templates
+ * @deprecated Will be removed when AuthManager lands.
+ *   The login form will be generated via HTMLForm.
  */
 
 class UserloginTemplate extends BaseTemplate {
@@ -28,6 +31,7 @@ class UserloginTemplate extends BaseTemplate {
 		$expirationDays = ceil( $wgCookieExpiration / ( 3600 * 24 ) );
 ?>
 <div class="mw-ui-container">
+	<div id="userloginprompt"><?php $this->msgWiki('loginprompt') ?></div>
 	<?php if ( $this->haveData( 'languages' ) ) { ?>
 		<div id="languagelinks">
 			<p><?php $this->html( 'languages' ); ?></p>
@@ -54,60 +58,54 @@ class UserloginTemplate extends BaseTemplate {
 				</div>
 			<?php } ?>
 
-			<div>
-				<label for='wpName1'>
+			<?php if ( $this->data['formheader'] ) { ?>
+				<div class="mw-form-formheader">
+					<?php $this->html( 'formheader' ); /* extensions such as MobileFrontend add HTML here */ ?>
+				</div>
+			<?php } ?>
+			<div class="mw-ui-vform-field">
+				<label for="wpName1">
 					<?php
 					$this->msg( 'userlogin-yourname' );
 
 					if ( $this->data['secureLoginUrl'] ) {
-						echo Html::element( 'a', array(
+						echo Html::element( 'a', [
 							'href' => $this->data['secureLoginUrl'],
 							'class' => 'mw-ui-flush-right mw-secure',
-						), $this->getMsg( 'userlogin-signwithsecure' )->text() );
+						], $this->getMsg( 'userlogin-signwithsecure' )->text() );
 					}
 					?>
 				</label>
 				<?php
-				$extraAttrs = array();
-				echo Html::input( 'wpName', $this->data['name'], 'text', array(
-					'class' => 'loginText',
+				echo Html::input( 'wpName', $this->data['name'], 'text', [
+					'class' => 'loginText mw-ui-input',
 					'id' => 'wpName1',
 					'tabindex' => '1',
-					'size' => '20',
 					// 'required' is blacklisted for now in Html.php due to browser issues.
 					// Keeping here in case that changes.
 					'required' => true,
 					// Set focus to this field if it's blank.
 					'autofocus' => !$this->data['name'],
 					'placeholder' => $this->getMsg( 'userlogin-yourname-ph' )->text()
-				) );
+				] );
 				?>
 			</div>
 
-			<div>
-				<label for='wpPassword1'>
+			<div class="mw-ui-vform-field">
+				<label for="wpPassword1">
 					<?php
 					$this->msg( 'userlogin-yourpassword' );
-
-					if ( $this->data['useemail'] && $this->data['canreset'] && $this->data['resetlink'] === true ) {
-						echo ' ' . Linker::link(
-							SpecialPage::getTitleFor( 'PasswordReset' ),
-							$this->getMsg( 'userlogin-resetpassword-link' )->parse(),
-							array( 'class' => 'mw-ui-flush-right' )
-						);
-					}
 					?>
 				</label>
 				<?php
-				echo Html::input( 'wpPassword', null, 'password', array(
-					'class' => 'loginPassword',
+				echo Html::input( 'wpPassword', null, 'password', [
+					'class' => 'loginPassword mw-ui-input',
 					'id' => 'wpPassword1',
 					'tabindex' => '2',
-					'size' => '20',
 					// Set focus to this field if username is filled in.
 					'autofocus' => (bool)$this->data['name'],
 					'placeholder' => $this->getMsg( 'userlogin-yourpassword-ph' )->text()
-				) );
+				] );
 				?>
 			</div>
 
@@ -119,8 +117,8 @@ class UserloginTemplate extends BaseTemplate {
 					$select->addOption( $dom );
 				}
 			?>
-				<div id="mw-user-domain-section">
-					<label for='wpDomain'><?php $this->msg( 'yourdomainname' ); ?></label>
+				<div class="mw-ui-vform-field" id="mw-user-domain-section">
+					<label for="wpDomain"><?php $this->msg( 'yourdomainname' ); ?></label>
 					<?php echo $select->getHTML(); ?>
 				</div>
 			<?php } ?>
@@ -131,46 +129,91 @@ class UserloginTemplate extends BaseTemplate {
 			}
 			?>
 
-			<div>
+			<div class="mw-ui-vform-field">
 				<?php if ( $this->data['canremember'] ) { ?>
-					<label class="mw-ui-checkbox-label">
+					<div class="mw-ui-checkbox">
 						<input name="wpRemember" type="checkbox" value="1" id="wpRemember" tabindex="4"
 							<?php if ( $this->data['remember'] ) {
 								echo 'checked="checked"';
 							} ?>
-						>
-						<?php echo $this->getMsg( 'userlogin-remembermypassword' )->numParams( $expirationDays )->escaped(); ?>
-					</label>
+						><label for="wpRemember">
+							<?php echo $this->getMsg( 'userlogin-remembermypassword' )->numParams( $expirationDays )->escaped(); ?></label>
+					</div>
 				<?php } ?>
 			</div>
 
-			<div>
+			<div class="mw-ui-vform-field">
 				<?php
-				echo Html::input( 'wpLoginAttempt', $this->getMsg( 'login' )->text(), 'submit', array(
+				$attrs = [
 					'id' => 'wpLoginAttempt',
+					'name' => 'wpLoginAttempt',
 					'tabindex' => '6',
-					'class' => 'mw-ui-button mw-ui-big mw-ui-block mw-ui-constructive'
-				) );
+				];
+				$modifiers = [
+					'mw-ui-progressive',
+				];
+				echo Html::submitButton( $this->getMsg( 'pt-login-button' )->text(), $attrs, $modifiers );
 				?>
 			</div>
 
-			<div id="mw-userlogin-help">
-				<?php echo $this->getMsg( 'userlogin-helplink' )->parse(); ?>
+			<div class="mw-ui-vform-field mw-form-related-link-container" id="mw-userlogin-help">
+				<?php
+				echo Html::element(
+					'a',
+					[
+						'href' => Skin::makeInternalOrExternalUrl(
+							wfMessage( 'helplogin-url' )->inContentLanguage()->text()
+						),
+					],
+					$this->getMsg( 'userlogin-helplink2' )->text()
+				);
+				?>
 			</div>
-			<?php if ( $this->haveData( 'createOrLoginHref' ) ) { ?>
-				<?php if ( $this->data['loggedin'] ) { ?>
-					<div id="mw-createaccount-another">
-						<h3 id="mw-userloginlink"><a href="<?php $this->text( 'createOrLoginHref' ); ?>" id="mw-createaccount-join" tabindex="7"  class="mw-ui-button"><?php $this->msg( 'userlogin-createanother' ); ?></a></h3>
+			<?php
+
+			if ( $this->data['useemail'] && $this->data['canreset'] && $this->data['resetlink'] === true ) {
+				echo Html::rawElement(
+					'div',
+					[
+						'class' => 'mw-ui-vform-field mw-form-related-link-container',
+					],
+					Linker::link(
+						SpecialPage::getTitleFor( 'PasswordReset' ),
+						$this->getMsg( 'userlogin-resetpassword-link' )->escaped()
+					)
+				);
+			}
+
+			if ( $this->haveData( 'createOrLoginHref' ) ) {
+				if ( $this->data['loggedin'] ) { ?>
+					<div class="mw-form-related-link-container mw-ui-vform-field">
+						<a href="<?php $this->text( 'createOrLoginHref' ); ?>" id="mw-createaccount-join" tabindex="7"><?php $this->msg( 'userlogin-createanother' ); ?></a>
 					</div>
 				<?php } else { ?>
-					<div id="mw-createaccount-cta">
-						<h3 id="mw-userloginlink"><?php $this->msg( 'userlogin-noaccount' ); ?><a href="<?php $this->text( 'createOrLoginHref' ); ?>" id="mw-createaccount-join" tabindex="7"  class="mw-ui-button mw-ui-progressive"><?php $this->msg( 'userlogin-joinproject' ); ?></a></h3>
+					<div id="mw-createaccount-cta" class="mw-ui-vform-field">
+						<?php $this->msg( 'userlogin-noaccount' ); ?><a href="<?php $this->text( 'createOrLoginHref' ); ?>" id="mw-createaccount-join" tabindex="7" class="mw-ui-button"><?php $this->msg( 'userlogin-joinproject' ); ?></a>
 					</div>
-				<?php } ?>
-			<?php } ?>
-			<?php if ( $this->haveData( 'uselang' ) ) { ?><input type="hidden" name="uselang" value="<?php $this->text( 'uselang' ); ?>" /><?php } ?>
-			<?php if ( $this->haveData( 'token' ) ) { ?><input type="hidden" name="wpLoginToken" value="<?php $this->text( 'token' ); ?>" /><?php } ?>
-			<?php if ( $this->data['cansecurelogin'] ) {?><input type="hidden" name="wpForceHttps" value="<?php $this->text( 'stickhttps' ); ?>" /><?php } ?>
+				<?php
+				}
+			}
+
+			// Hidden fields
+			$fields = '';
+			if ( $this->haveData( 'uselang' ) ) {
+				$fields .= Html::hidden( 'uselang', $this->data['uselang'] );
+			}
+			if ( $this->haveData( 'token' ) ) {
+				$fields .= Html::hidden( 'wpLoginToken', $this->data['token'] );
+			}
+			if ( $this->data['cansecurelogin'] ) {
+				$fields .= Html::hidden( 'wpForceHttps', $this->data['stickhttps'] );
+			}
+			if ( $this->data['cansecurelogin'] && $this->haveData( 'fromhttp' ) ) {
+				$fields .= Html::hidden( 'wpFromhttp', $this->data['fromhttp'] );
+			}
+			echo $fields;
+
+			?>
 		</form>
 	</div>
 </div>

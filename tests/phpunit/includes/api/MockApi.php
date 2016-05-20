@@ -4,17 +4,14 @@ class MockApi extends ApiBase {
 	public function execute() {
 	}
 
-	public function getVersion() {
-	}
-
 	public function __construct() {
 	}
 
 	public function getAllowedParams() {
-		return array(
+		return [
 			'filename' => null,
 			'enablechunks' => false,
 			'sessionkey' => null,
-		);
+		];
 	}
 }

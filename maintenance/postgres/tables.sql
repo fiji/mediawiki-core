@@ -12,18 +12,24 @@ SET client_min_messages = 'ERROR';
 DROP SEQUENCE IF EXISTS user_user_id_seq CASCADE;
 DROP SEQUENCE IF EXISTS page_page_id_seq CASCADE;
 DROP SEQUENCE IF EXISTS revision_rev_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS page_restrictions_id_seq CASCADE;
+DROP SEQUENCE IF EXISTS text_old_id_seq CASCADE;
+DROP SEQUENCE IF EXISTS page_restrictions_pr_id_seq CASCADE;
 DROP SEQUENCE IF EXISTS ipblocks_ipb_id_seq CASCADE;
+DROP SEQUENCE IF EXISTS filearchive_fa_id_seq CASCADE;
+DROP SEQUENCE IF EXISTS uploadstash_us_id_seq CASCADE;
 DROP SEQUENCE IF EXISTS recentchanges_rc_id_seq CASCADE;
+DROP SEQUENCE IF EXISTS watchlist_wl_id_seq CASCADE;
 DROP SEQUENCE IF EXISTS logging_log_id_seq CASCADE;
 DROP SEQUENCE IF EXISTS job_job_id_seq CASCADE;
 DROP SEQUENCE IF EXISTS category_cat_id_seq CASCADE;
 DROP SEQUENCE IF EXISTS archive_ar_id_seq CASCADE;
 DROP SEQUENCE IF EXISTS externallinks_el_id_seq CASCADE;
+DROP SEQUENCE IF EXISTS sites_site_id_seq CASCADE;
 DROP FUNCTION IF EXISTS page_deleted() CASCADE;
 DROP FUNCTION IF EXISTS ts2_page_title() CASCADE;
 DROP FUNCTION IF EXISTS ts2_page_text() CASCADE;
 DROP FUNCTION IF EXISTS add_interwiki(TEXT,INT,SMALLINT) CASCADE;
+DROP TYPE IF EXISTS media_type CASCADE;
 
 CREATE SEQUENCE user_user_id_seq MINVALUE 0 START WITH 0;
 CREATE TABLE mwuser ( -- replace reserved word 'user'
@@ -40,7 +46,8 @@ CREATE TABLE mwuser ( -- replace reserved word 'user'
   user_email_authenticated  TIMESTAMPTZ,
   user_touched              TIMESTAMPTZ,
   user_registration         TIMESTAMPTZ,
-  user_editcount            INTEGER
+  user_editcount            INTEGER,
+  user_password_expires     TIMESTAMPTZ NULL
 );
 CREATE INDEX user_email_token_idx ON mwuser (user_email_token);
 
@@ -68,6 +75,15 @@ CREATE TABLE user_newtalk (
 CREATE INDEX user_newtalk_id_idx ON user_newtalk (user_id);
 CREATE INDEX user_newtalk_ip_idx ON user_newtalk (user_ip);
 
+CREATE TABLE bot_passwords (
+  bp_user INTEGER NOT NULL,
+  bp_app_id TEXT NOT NULL,
+  bp_password TEXT NOT NULL,
+  bp_token TEXT NOT NULL,
+  bp_restrictions TEXT NOT NULL,
+  bp_grants TEXT NOT NULL,
+  PRIMARY KEY ( bp_user, bp_app_id )
+);
 
 CREATE SEQUENCE page_page_id_seq;
 CREATE TABLE page (
@@ -75,7 +91,6 @@ CREATE TABLE page (
   page_namespace     SMALLINT       NOT NULL,
   page_title         TEXT           NOT NULL,
   page_restrictions  TEXT,
-  page_counter       BIGINT         NOT NULL  DEFAULT 0,
   page_is_redirect   SMALLINT       NOT NULL  DEFAULT 0,
   page_is_new        SMALLINT       NOT NULL  DEFAULT 0,
   page_random        NUMERIC(15,14) NOT NULL  DEFAULT RANDOM(),
@@ -83,7 +98,8 @@ CREATE TABLE page (
   page_links_updated TIMESTAMPTZ    NULL,
   page_latest        INTEGER        NOT NULL, -- FK?
   page_len           INTEGER        NOT NULL,
-  page_content_model TEXT
+  page_content_model TEXT,
+  page_lang          TEXT                     DEFAULT NULL
 );
 CREATE UNIQUE INDEX page_unique_name ON page (page_namespace, page_title);
 CREATE INDEX page_main_title         ON page (page_title text_pattern_ops) WHERE page_namespace = 0;
@@ -153,11 +169,13 @@ ALTER TABLE page_restrictions ADD CONSTRAINT page_restrictions_pk PRIMARY KEY (p
 CREATE TABLE page_props (
   pp_page      INTEGER  NOT NULL  REFERENCES page (page_id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
   pp_propname  TEXT     NOT NULL,
-  pp_value     TEXT     NOT NULL
+  pp_value     TEXT     NOT NULL,
+  pp_sortkey   FLOAT
 );
 ALTER TABLE page_props ADD CONSTRAINT page_props_pk PRIMARY KEY (pp_page,pp_propname);
 CREATE INDEX page_props_propname ON page_props (pp_propname);
 CREATE UNIQUE INDEX pp_propname_page ON page_props (pp_propname,pp_page);
+CREATE INDEX pp_propname_sortkey_page ON page_props (pp_propname, pp_sortkey, pp_page) WHERE (pp_sortkey IS NOT NULL);
 
 CREATE SEQUENCE archive_ar_id_seq;
 CREATE TABLE archive (
@@ -197,6 +215,7 @@ CREATE INDEX redirect_ns_title ON redirect (rd_namespace,rd_title,rd_from);
 
 CREATE TABLE pagelinks (
   pl_from       INTEGER   NOT NULL  REFERENCES page(page_id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
+  pl_from_namespace INTEGER NOT NULL DEFAULT 0,
   pl_namespace  SMALLINT  NOT NULL,
   pl_title      TEXT      NOT NULL
 );
@@ -205,6 +224,7 @@ CREATE INDEX pagelinks_title ON pagelinks (pl_title);
 
 CREATE TABLE templatelinks (
   tl_from       INTEGER  NOT NULL  REFERENCES page(page_id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
+  tl_from_namespace INTEGER NOT NULL DEFAULT 0,
   tl_namespace  SMALLINT NOT NULL,
   tl_title      TEXT     NOT NULL
 );
@@ -213,6 +233,7 @@ CREATE INDEX templatelinks_from          ON templatelinks (tl_from);
 
 CREATE TABLE imagelinks (
   il_from  INTEGER  NOT NULL  REFERENCES page(page_id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
+  il_from_namespace INTEGER NOT NULL DEFAULT 0,
   il_to    TEXT     NOT NULL
 );
 CREATE UNIQUE INDEX il_from ON imagelinks (il_to,il_from);
@@ -250,7 +271,6 @@ CREATE INDEX langlinks_lang_title    ON langlinks (ll_lang,ll_title);
 
 CREATE TABLE site_stats (
   ss_row_id         INTEGER  NOT NULL  UNIQUE,
-  ss_total_views    INTEGER            DEFAULT 0,
   ss_total_edits    INTEGER            DEFAULT 0,
   ss_good_articles  INTEGER            DEFAULT 0,
   ss_total_pages    INTEGER            DEFAULT -1,
@@ -258,10 +278,6 @@ CREATE TABLE site_stats (
   ss_active_users   INTEGER            DEFAULT -1,
   ss_admins         INTEGER            DEFAULT -1,
   ss_images         INTEGER            DEFAULT 0
-);
-
-CREATE TABLE hitcounter (
-  hc_id  BIGINT  NOT NULL
 );
 
 
@@ -400,7 +416,7 @@ CREATE SEQUENCE recentchanges_rc_id_seq;
 CREATE TABLE recentchanges (
   rc_id              INTEGER      NOT NULL  PRIMARY KEY DEFAULT nextval('recentchanges_rc_id_seq'),
   rc_timestamp       TIMESTAMPTZ  NOT NULL,
-  rc_cur_time        TIMESTAMPTZ  NOT NULL,
+  rc_cur_time        TIMESTAMPTZ      NULL,
   rc_user            INTEGER          NULL  REFERENCES mwuser(user_id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED,
   rc_user_text       TEXT         NOT NULL,
   rc_namespace       SMALLINT     NOT NULL,
@@ -409,7 +425,7 @@ CREATE TABLE recentchanges (
   rc_minor           SMALLINT     NOT NULL  DEFAULT 0,
   rc_bot             SMALLINT     NOT NULL  DEFAULT 0,
   rc_new             SMALLINT     NOT NULL  DEFAULT 0,
-  rc_cur_id          INTEGER          NULL  REFERENCES page(page_id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED,
+  rc_cur_id          INTEGER          NULL,
   rc_this_oldid      INTEGER      NOT NULL,
   rc_last_oldid      INTEGER      NOT NULL,
   rc_type            SMALLINT     NOT NULL  DEFAULT 0,
@@ -432,7 +448,9 @@ CREATE INDEX new_name_timestamp ON recentchanges (rc_new, rc_namespace, rc_times
 CREATE INDEX rc_ip              ON recentchanges (rc_ip);
 
 
+CREATE SEQUENCE watchlist_wl_id_seq;
 CREATE TABLE watchlist (
+  wl_id                     INTEGER     NOT NULL  PRIMARY KEY DEFAULT nextval('watchlist_wl_id_seq'),
   wl_user                   INTEGER     NOT NULL  REFERENCES mwuser(user_id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
   wl_namespace              SMALLINT    NOT NULL  DEFAULT 0,
   wl_title                  TEXT        NOT NULL,
@@ -440,6 +458,7 @@ CREATE TABLE watchlist (
 );
 CREATE UNIQUE INDEX wl_user_namespace_title ON watchlist (wl_namespace, wl_title, wl_user);
 CREATE INDEX wl_user ON watchlist (wl_user);
+CREATE INDEX wl_user_notificationtimestamp ON watchlist (wl_user, wl_notificationtimestamp);
 
 
 CREATE TABLE interwiki (
@@ -670,7 +689,7 @@ CREATE INDEX user_properties_property ON user_properties (up_property);
 CREATE TABLE l10n_cache (
   lc_lang   TEXT  NOT NULL,
   lc_key    TEXT  NOT NULL,
-  lc_value  TEXT  NOT NULL
+  lc_value  BYTEA NOT NULL
 );
 CREATE INDEX l10n_cache_lc_lang_key ON l10n_cache (lc_lang, lc_key);
 
@@ -682,20 +701,6 @@ CREATE TABLE iwlinks (
 CREATE UNIQUE INDEX iwl_from ON iwlinks (iwl_from, iwl_prefix, iwl_title);
 CREATE UNIQUE INDEX iwl_prefix_title_from ON iwlinks (iwl_prefix, iwl_title, iwl_from);
 CREATE UNIQUE INDEX iwl_prefix_from_title ON iwlinks (iwl_prefix, iwl_from, iwl_title);
-
-CREATE TABLE msg_resource (
-  mr_resource   TEXT         NOT NULL,
-  mr_lang       TEXT         NOT NULL,
-  mr_blob       TEXT         NOT NULL,
-  mr_timestamp  TIMESTAMPTZ  NOT NULL
-);
-CREATE UNIQUE INDEX mr_resource_lang ON msg_resource (mr_resource, mr_lang);
-
-CREATE TABLE msg_resource_links (
-  mrl_resource  TEXT  NOT NULL,
-  mrl_message   TEXT  NOT NULL
-);
-CREATE UNIQUE INDEX mrl_message_resource ON msg_resource_links (mrl_message, mrl_resource);
 
 CREATE TABLE module_deps (
   md_module  TEXT  NOT NULL,

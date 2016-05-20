@@ -1,5 +1,4 @@
 <?php
-
 /**
  * Although marked as a stub, can work independently.
  *
@@ -10,7 +9,7 @@
  * @todo covers tags
  */
 class NewParserTest extends MediaWikiTestCase {
-	static protected $articles = array(); // Array of test articles defined by the tests
+	static protected $articles = []; // Array of test articles defined by the tests
 	/* The data provider is run on a different instance than the test, so it must be static
 	 * When running tests from several files, all tests will see all articles.
 	 */
@@ -21,15 +20,25 @@ class NewParserTest extends MediaWikiTestCase {
 	public $runParsoid = false;
 	public $regex = '';
 	public $showProgress = true;
-	public $savedWeirdGlobals = array();
-	public $savedGlobals = array();
-	public $hooks = array();
-	public $functionHooks = array();
+	public $savedWeirdGlobals = [];
+	public $savedGlobals = [];
+	public $hooks = [];
+	public $functionHooks = [];
+	public $transparentHooks = [];
 
-	//Fuzz test
+	// Fuzz test
 	public $maxFuzzTestLength = 300;
 	public $fuzzSeed = 0;
 	public $memoryLimit = 50;
+
+	/**
+	 * @var DjVuSupport
+	 */
+	private $djVuSupport;
+	/**
+	 * @var TidySupport
+	 */
+	private $tidySupport;
 
 	protected $file = false;
 
@@ -44,9 +53,9 @@ class NewParserTest extends MediaWikiTestCase {
 
 		parent::setUp();
 
-		//Setup CLI arguments
-		if ( $this->getCliArg( 'regex=' ) ) {
-			$this->regex = $this->getCliArg( 'regex=' );
+		// Setup CLI arguments
+		if ( $this->getCliArg( 'regex' ) ) {
+			$this->regex = $this->getCliArg( 'regex' );
 		} else {
 			# Matches anything
 			$this->regex = '';
@@ -54,67 +63,65 @@ class NewParserTest extends MediaWikiTestCase {
 
 		$this->keepUploads = $this->getCliArg( 'keep-uploads' );
 
-		$tmpGlobals = array();
+		$tmpGlobals = [];
 
 		$tmpGlobals['wgLanguageCode'] = 'en';
 		$tmpGlobals['wgContLang'] = Language::factory( 'en' );
 		$tmpGlobals['wgSitename'] = 'MediaWiki';
 		$tmpGlobals['wgServer'] = 'http://example.org';
+		$tmpGlobals['wgServerName'] = 'example.org';
+		$tmpGlobals['wgScriptPath'] = '';
 		$tmpGlobals['wgScript'] = '/index.php';
-		$tmpGlobals['wgScriptPath'] = '/';
-		$tmpGlobals['wgArticlePath'] = '/wiki/$1';
-		$tmpGlobals['wgActionPaths'] = array();
-		$tmpGlobals['wgVariantArticlePath'] = false;
-		$tmpGlobals['wgExtensionAssetsPath'] = '/extensions';
+		$tmpGlobals['wgResourceBasePath'] = '';
 		$tmpGlobals['wgStylePath'] = '/skins';
+		$tmpGlobals['wgExtensionAssetsPath'] = '/extensions';
+		$tmpGlobals['wgArticlePath'] = '/wiki/$1';
+		$tmpGlobals['wgActionPaths'] = [];
+		$tmpGlobals['wgVariantArticlePath'] = false;
 		$tmpGlobals['wgEnableUploads'] = true;
+		$tmpGlobals['wgUploadNavigationUrl'] = false;
 		$tmpGlobals['wgThumbnailScriptPath'] = false;
-		$tmpGlobals['wgLocalFileRepo'] = array(
+		$tmpGlobals['wgLocalFileRepo'] = [
 			'class' => 'LocalRepo',
 			'name' => 'local',
 			'url' => 'http://example.com/images',
 			'hashLevels' => 2,
 			'transformVia404' => false,
 			'backend' => 'local-backend'
-		);
-		$tmpGlobals['wgForeignFileRepos'] = array();
-		$tmpGlobals['wgDefaultExternalStore'] = array();
-		$tmpGlobals['wgEnableParserCache'] = false;
+		];
+		$tmpGlobals['wgForeignFileRepos'] = [];
+		$tmpGlobals['wgDefaultExternalStore'] = [];
+		$tmpGlobals['wgParserCacheType'] = CACHE_NONE;
 		$tmpGlobals['wgCapitalLinks'] = true;
 		$tmpGlobals['wgNoFollowLinks'] = true;
-		$tmpGlobals['wgNoFollowDomainExceptions'] = array();
+		$tmpGlobals['wgNoFollowDomainExceptions'] = [];
 		$tmpGlobals['wgExternalLinkTarget'] = false;
 		$tmpGlobals['wgThumbnailScriptPath'] = false;
 		$tmpGlobals['wgUseImageResize'] = true;
 		$tmpGlobals['wgAllowExternalImages'] = true;
 		$tmpGlobals['wgRawHtml'] = false;
-		$tmpGlobals['wgUseTidy'] = false;
-		$tmpGlobals['wgAlwaysUseTidy'] = false;
-		$tmpGlobals['wgWellFormedXml'] = true;
-		$tmpGlobals['wgAllowMicrodataAttributes'] = true;
 		$tmpGlobals['wgExperimentalHtmlIds'] = false;
 		$tmpGlobals['wgAdaptiveMessageCache'] = true;
 		$tmpGlobals['wgUseDatabaseMessages'] = true;
 		$tmpGlobals['wgLocaltimezone'] = 'UTC';
-		$tmpGlobals['wgDeferredUpdateList'] = array();
-		$tmpGlobals['wgGroupPermissions'] = array(
-			'*' => array(
+		$tmpGlobals['wgGroupPermissions'] = [
+			'*' => [
 				'createaccount' => true,
 				'read' => true,
 				'edit' => true,
 				'createpage' => true,
 				'createtalk' => true,
-		) );
-		$tmpGlobals['wgNamespaceProtection'] = array( NS_MEDIAWIKI => 'editinterface' );
+		] ];
+		$tmpGlobals['wgNamespaceProtection'] = [ NS_MEDIAWIKI => 'editinterface' ];
 
 		$tmpGlobals['wgParser'] = new StubObject(
 			'wgParser', $GLOBALS['wgParserConf']['class'],
-			array( $GLOBALS['wgParserConf'] ) );
+			[ $GLOBALS['wgParserConf'] ] );
 
 		$tmpGlobals['wgFileExtensions'][] = 'svg';
 		$tmpGlobals['wgSVGConverter'] = 'rsvg';
 		$tmpGlobals['wgSVGConverters']['rsvg'] =
-			'$path/rsvg-convert -w $width -h $height $input -o $output';
+			'$path/rsvg-convert -w $width -h $height -o $output $input';
 
 		if ( $GLOBALS['wgStyleDirectory'] === false ) {
 			$tmpGlobals['wgStyleDirectory'] = "$IP/skins";
@@ -130,13 +137,38 @@ class NewParserTest extends MediaWikiTestCase {
 		// Vector images have to be handled slightly differently
 		$tmpGlobals['wgMediaHandlers']['image/svg+xml'] = 'MockSvgHandler';
 
+		// DjVu images have to be handled slightly differently
+		$tmpGlobals['wgMediaHandlers']['image/vnd.djvu'] = 'MockDjVuHandler';
+
+		// Ogg video/audio increasingly more differently
+		$tmpGlobals['wgMediaHandlers']['application/ogg'] = 'MockOggHandler';
+
 		$tmpHooks = $wgHooks;
 		$tmpHooks['ParserTestParser'][] = 'ParserTestParserHook::setup';
 		$tmpHooks['ParserGetVariableValueTs'][] = 'ParserTest::getFakeTimestamp';
 		$tmpGlobals['wgHooks'] = $tmpHooks;
 		# add a namespace shadowing a interwiki link, to test
 		# proper precedence when resolving links. (bug 51680)
-		$tmpGlobals['wgExtraNamespaces'] = array( 100 => 'MemoryAlpha' );
+		$tmpGlobals['wgExtraNamespaces'] = [
+			100 => 'MemoryAlpha',
+			101 => 'MemoryAlpha_talk'
+		];
+
+		$tmpGlobals['wgLocalInterwikis'] = [ 'local', 'mi' ];
+		# "extra language links"
+		# see https://gerrit.wikimedia.org/r/111390
+		$tmpGlobals['wgExtraInterlanguageLinkPrefixes'] = [ 'mul' ];
+
+		// DjVu support
+		$this->djVuSupport = new DjVuSupport();
+		// Tidy support
+		$this->tidySupport = new TidySupport();
+		$tmpGlobals['wgTidyConfig'] = null;
+		$tmpGlobals['wgUseTidy'] = false;
+		$tmpGlobals['wgDebugTidy'] = false;
+		$tmpGlobals['wgTidyConf'] = $IP . '/includes/tidy/tidy.conf';
+		$tmpGlobals['wgTidyOpts'] = '';
+		$tmpGlobals['wgTidyInternal'] = $this->tidySupport->isInternal();
 
 		$this->setMwGlobals( $tmpGlobals );
 
@@ -148,6 +180,7 @@ class NewParserTest extends MediaWikiTestCase {
 
 		MWNamespace::getCanonicalNamespaces( true ); # reset namespace cache
 		$wgContLang->resetNamespaces(); # reset namespace cache
+		ParserTest::resetTitleServices();
 	}
 
 	protected function tearDown() {
@@ -155,6 +188,8 @@ class NewParserTest extends MediaWikiTestCase {
 
 		$wgNamespaceAliases['Image'] = $this->savedWeirdGlobals['image_alias'];
 		$wgNamespaceAliases['Image_talk'] = $this->savedWeirdGlobals['image_talk_alias'];
+
+		MWTidy::destroySingleton();
 
 		// Restore backends
 		RepoGroup::destroySingleton();
@@ -177,15 +212,15 @@ class NewParserTest extends MediaWikiTestCase {
 		parent::tearDownAfterClass();
 	}
 
-	function addDBData() {
-		$this->tablesUsed[] = 'site_stats';
+	function addDBDataOnce() {
 		# disabled for performance
-		#$this->tablesUsed[] = 'image';
+		# $this->tablesUsed[] = 'image';
 
 		# Update certain things in site_stats
 		$this->db->insert( 'site_stats',
-			array( 'ss_row_id' => 1, 'ss_images' => 2, 'ss_good_articles' => 1 ),
-			__METHOD__
+			[ 'ss_row_id' => 1, 'ss_images' => 2, 'ss_good_articles' => 1 ],
+			__METHOD__,
+			[ 'IGNORE' ]
 		);
 
 		$user = User::newFromId( 0 );
@@ -200,88 +235,148 @@ class NewParserTest extends MediaWikiTestCase {
 		# to recordUpload2 have no effect.  That said, we try to make things
 		# match up so it is less confusing to readers of the code & tests.
 		$image = wfLocalFile( Title::makeTitle( NS_FILE, 'Foobar.jpg' ) );
-		if ( !$this->db->selectField( 'image', '1', array( 'img_name' => $image->getName() ) ) ) {
+		if ( !$this->db->selectField( 'image', '1', [ 'img_name' => $image->getName() ] ) ) {
 			$image->recordUpload2(
 				'', // archive name
 				'Upload of some lame file',
 				'Some lame file',
-				array(
+				[
 					'size' => 7881,
 					'width' => 1941,
 					'height' => 220,
 					'bits' => 8,
 					'media_type' => MEDIATYPE_BITMAP,
 					'mime' => 'image/jpeg',
-					'metadata' => serialize( array() ),
-					'sha1' => wfBaseConvert( '1', 16, 36, 31 ),
-					'fileExists' => true ),
+					'metadata' => serialize( [] ),
+					'sha1' => Wikimedia\base_convert( '1', 16, 36, 31 ),
+					'fileExists' => true ],
 				$this->db->timestamp( '20010115123500' ), $user
 			);
 		}
 
 		$image = wfLocalFile( Title::makeTitle( NS_FILE, 'Thumb.png' ) );
-		if ( !$this->db->selectField( 'image', '1', array( 'img_name' => $image->getName() ) ) ) {
+		if ( !$this->db->selectField( 'image', '1', [ 'img_name' => $image->getName() ] ) ) {
 			$image->recordUpload2(
 				'', // archive name
 				'Upload of some lame thumbnail',
 				'Some lame thumbnail',
-				array(
+				[
 					'size' => 22589,
 					'width' => 135,
 					'height' => 135,
 					'bits' => 8,
 					'media_type' => MEDIATYPE_BITMAP,
 					'mime' => 'image/png',
-					'metadata' => serialize( array() ),
-					'sha1' => wfBaseConvert( '2', 16, 36, 31 ),
-					'fileExists' => true ),
+					'metadata' => serialize( [] ),
+					'sha1' => Wikimedia\base_convert( '2', 16, 36, 31 ),
+					'fileExists' => true ],
 				$this->db->timestamp( '20130225203040' ), $user
 			);
 		}
 
 		# This image will be blacklisted in [[MediaWiki:Bad image list]]
 		$image = wfLocalFile( Title::makeTitle( NS_FILE, 'Bad.jpg' ) );
-		if ( !$this->db->selectField( 'image', '1', array( 'img_name' => $image->getName() ) ) ) {
+		if ( !$this->db->selectField( 'image', '1', [ 'img_name' => $image->getName() ] ) ) {
 			$image->recordUpload2(
 				'', // archive name
 				'zomgnotcensored',
 				'Borderline image',
-				array(
+				[
 					'size' => 12345,
 					'width' => 320,
 					'height' => 240,
 					'bits' => 24,
 					'media_type' => MEDIATYPE_BITMAP,
 					'mime' => 'image/jpeg',
-					'metadata' => serialize( array() ),
-					'sha1' => wfBaseConvert( '3', 16, 36, 31 ),
-					'fileExists' => true ),
+					'metadata' => serialize( [] ),
+					'sha1' => Wikimedia\base_convert( '3', 16, 36, 31 ),
+					'fileExists' => true ],
 				$this->db->timestamp( '20010115123500' ), $user
 			);
 		}
 		$image = wfLocalFile( Title::makeTitle( NS_FILE, 'Foobar.svg' ) );
-		if ( !$this->db->selectField( 'image', '1', array( 'img_name' => $image->getName() ) ) ) {
-			$image->recordUpload2( '', 'Upload of some lame SVG', 'Some lame SVG', array(
+		if ( !$this->db->selectField( 'image', '1', [ 'img_name' => $image->getName() ] ) ) {
+			$image->recordUpload2( '', 'Upload of some lame SVG', 'Some lame SVG', [
 					'size'        => 12345,
-					'width'       => 200,
-					'height'      => 200,
-					'bits'        => 24,
+					'width'       => 240,
+					'height'      => 180,
+					'bits'        => 0,
 					'media_type'  => MEDIATYPE_DRAWING,
 					'mime'        => 'image/svg+xml',
-					'metadata'    => serialize( array() ),
-					'sha1'        => wfBaseConvert( '', 16, 36, 31 ),
+					'metadata'    => serialize( [] ),
+					'sha1'        => Wikimedia\base_convert( '', 16, 36, 31 ),
 					'fileExists'  => true
-			), $this->db->timestamp( '20010115123500' ), $user );
+			], $this->db->timestamp( '20010115123500' ), $user );
+		}
+
+		$image = wfLocalFile( Title::makeTitle( NS_FILE, 'Video.ogv' ) );
+		if ( !$this->db->selectField( 'image', '1', [ 'img_name' => $image->getName() ] ) ) {
+			$image->recordUpload2( '', 'A pretty movie', 'Will it play', [
+					'size'        => 12345,
+					'width'       => 320,
+					'height'      => 240,
+					'bits'        => 0,
+					'media_type'  => MEDIATYPE_VIDEO,
+					'mime'        => 'application/ogg',
+					'metadata'    => serialize( [] ),
+					'sha1'        => Wikimedia\base_convert( '', 16, 36, 32 ),
+					'fileExists'  => true
+			], $this->db->timestamp( '20010115123500' ), $user );
+		}
+
+		# A DjVu file
+		# A DjVu file
+		$image = wfLocalFile( Title::makeTitle( NS_FILE, 'LoremIpsum.djvu' ) );
+		if ( !$this->db->selectField( 'image', '1', [ 'img_name' => $image->getName() ] ) ) {
+			$image->recordUpload2( '', 'Upload a DjVu', 'A DjVu', [
+				'size' => 3249,
+				'width' => 2480,
+				'height' => 3508,
+				'bits' => 0,
+				'media_type' => MEDIATYPE_BITMAP,
+				'mime' => 'image/vnd.djvu',
+				'metadata' => '<?xml version="1.0" ?>
+<!DOCTYPE DjVuXML PUBLIC "-//W3C//DTD DjVuXML 1.1//EN" "pubtext/DjVuXML-s.dtd">
+<DjVuXML>
+<HEAD></HEAD>
+<BODY><OBJECT height="3508" width="2480">
+<PARAM name="DPI" value="300" />
+<PARAM name="GAMMA" value="2.2" />
+</OBJECT>
+<OBJECT height="3508" width="2480">
+<PARAM name="DPI" value="300" />
+<PARAM name="GAMMA" value="2.2" />
+</OBJECT>
+<OBJECT height="3508" width="2480">
+<PARAM name="DPI" value="300" />
+<PARAM name="GAMMA" value="2.2" />
+</OBJECT>
+<OBJECT height="3508" width="2480">
+<PARAM name="DPI" value="300" />
+<PARAM name="GAMMA" value="2.2" />
+</OBJECT>
+<OBJECT height="3508" width="2480">
+<PARAM name="DPI" value="300" />
+<PARAM name="GAMMA" value="2.2" />
+</OBJECT>
+</BODY>
+</DjVuXML>',
+				'sha1' => Wikimedia\base_convert( '', 16, 36, 31 ),
+				'fileExists' => true
+			], $this->db->timestamp( '20140115123600' ), $user );
 		}
 	}
 
-	//ParserTest setup/teardown functions
+	// ParserTest setup/teardown functions
 
 	/**
 	 * Set up the global variables for a consistent environment for each test.
 	 * Ideally this should replace the global configuration entirely.
+	 * @param array $opts
+	 * @param string $config
+	 * @return RequestContext
 	 */
-	protected function setupGlobals( $opts = array(), $config = '' ) {
+	protected function setupGlobals( $opts = [], $config = '' ) {
 		global $wgFileBackends;
 		# Find out values for some special options.
 		$lang =
@@ -294,12 +389,12 @@ class NewParserTest extends MediaWikiTestCase {
 			self::getOptionValue( 'wgLinkHolderBatchSize', $opts, 1000 );
 
 		$uploadDir = $this->getUploadDir();
-		if ( $this->getCliArg( 'use-filebackend=' ) ) {
+		if ( $this->getCliArg( 'use-filebackend' ) ) {
 			if ( self::$backendToUse ) {
 				$backend = self::$backendToUse;
 			} else {
-				$name = $this->getCliArg( 'use-filebackend=' );
-				$useConfig = array();
+				$name = $this->getCliArg( 'use-filebackend' );
+				$useConfig = [];
 				foreach ( $wgFileBackends as $conf ) {
 					if ( $conf['name'] == $name ) {
 						$useConfig = $conf;
@@ -316,33 +411,35 @@ class NewParserTest extends MediaWikiTestCase {
 			# Replace with a mock. We do not care about generating real
 			# files on the filesystem, just need to expose the file
 			# informations.
-			$backend = new MockFileBackend( array(
+			$backend = new MockFileBackend( [
 				'name' => 'local-backend',
-				'wikiId' => wfWikiId()
-			) );
+				'wikiId' => wfWikiID()
+			] );
 		}
 
-		$settings = array(
-			'wgLocalFileRepo' => array(
+		$settings = [
+			'wgLocalFileRepo' => [
 				'class' => 'LocalRepo',
 				'name' => 'local',
 				'url' => 'http://example.com/images',
 				'hashLevels' => 2,
 				'transformVia404' => false,
 				'backend' => $backend
-			),
+			],
 			'wgEnableUploads' => self::getOptionValue( 'wgEnableUploads', $opts, true ),
 			'wgLanguageCode' => $lang,
 			'wgDBprefix' => $this->db->getType() != 'oracle' ? 'unittest_' : 'ut_',
 			'wgRawHtml' => self::getOptionValue( 'wgRawHtml', $opts, false ),
-			'wgNamespacesWithSubpages' => array( NS_MAIN => isset( $opts['subpage'] ) ),
+			'wgNamespacesWithSubpages' => [ NS_MAIN => isset( $opts['subpage'] ) ],
 			'wgAllowExternalImages' => self::getOptionValue( 'wgAllowExternalImages', $opts, true ),
+			'wgThumbLimits' => [ self::getOptionValue( 'thumbsize', $opts, 180 ) ],
 			'wgMaxTocLevel' => $maxtoclevel,
 			'wgUseTeX' => isset( $opts['math'] ) || isset( $opts['texvc'] ),
 			'wgMathDirectory' => $uploadDir . '/math',
 			'wgDefaultLanguageVariant' => $variant,
 			'wgLinkHolderBatchSize' => $linkHolderBatchSize,
-		);
+			'wgUseTidy' => isset( $opts['tidy'] ),
+		];
 
 		if ( $config ) {
 			$configLines = explode( "\n", $config );
@@ -350,14 +447,14 @@ class NewParserTest extends MediaWikiTestCase {
 			foreach ( $configLines as $line ) {
 				list( $var, $value ) = explode( '=', $line, 2 );
 
-				$settings[$var] = eval( "return $value;" ); //???
+				$settings[$var] = eval( "return $value;" ); // ???
 			}
 		}
 
-		$this->savedGlobals = array();
+		$this->savedGlobals = [];
 
 		/** @since 1.20 */
-		wfRunHooks( 'ParserTestGlobals', array( &$settings ) );
+		Hooks::run( 'ParserTestGlobals', [ &$settings ] );
 
 		$langObj = Language::factory( $lang );
 		$settings['wgContLang'] = $langObj;
@@ -368,6 +465,9 @@ class NewParserTest extends MediaWikiTestCase {
 		$settings['wgUser'] = $context->getUser();
 		$settings['wgRequest'] = $context->getRequest();
 
+		// We (re)set $wgThumbLimits to a single-element array above.
+		$context->getUser()->setOption( 'thumbsize', 0 );
+
 		foreach ( $settings as $var => $val ) {
 			if ( array_key_exists( $var, $GLOBALS ) ) {
 				$this->savedGlobals[$var] = $GLOBALS[$var];
@@ -376,6 +476,7 @@ class NewParserTest extends MediaWikiTestCase {
 			$GLOBALS[$var] = $val;
 		}
 
+		MWTidy::destroySingleton();
 		MagicWord::clearCache();
 
 		# The entries saved into RepoGroup cache with previous globals will be wrong.
@@ -396,20 +497,20 @@ class NewParserTest extends MediaWikiTestCase {
 	/**
 	 * Get an FS upload directory (only applies to FSFileBackend)
 	 *
-	 * @return String: the directory
+	 * @return string The directory
 	 */
 	protected function getUploadDir() {
 		if ( $this->keepUploads ) {
+			// Don't use getNewTempDirectory() as this is meant to persist
 			$dir = wfTempDir() . '/mwParser-images';
 
 			if ( is_dir( $dir ) ) {
 				return $dir;
 			}
 		} else {
-			$dir = wfTempDir() . "/mwParser-" . mt_rand() . "-images";
+			$dir = $this->getNewTempDirectory();
 		}
 
-		// wfDebug( "Creating upload directory $dir\n" );
 		if ( file_exists( $dir ) ) {
 			wfDebug( "Already exists!\n" );
 
@@ -423,34 +524,43 @@ class NewParserTest extends MediaWikiTestCase {
 	 * Create a dummy uploads directory which will contain a couple
 	 * of files in order to pass existence tests.
 	 *
-	 * @return String: the directory
+	 * @return string The directory
 	 */
 	protected function setupUploads() {
 		global $IP;
 
 		$base = $this->getBaseDir();
 		$backend = RepoGroup::singleton()->getLocalRepo()->getBackend();
-		$backend->prepare( array( 'dir' => "$base/local-public/3/3a" ) );
-		$backend->store( array(
-			'src' => "$IP/skins/monobook/headbg.jpg", 'dst' => "$base/local-public/3/3a/Foobar.jpg"
-		) );
-		$backend->prepare( array( 'dir' => "$base/local-public/e/ea" ) );
-		$backend->store( array(
-			'src' => "$IP/skins/monobook/wiki.png", 'dst' => "$base/local-public/e/ea/Thumb.png"
-		) );
-		$backend->prepare( array( 'dir' => "$base/local-public/0/09" ) );
-		$backend->store( array(
-			'src' => "$IP/skins/monobook/headbg.jpg", 'dst' => "$base/local-public/0/09/Bad.jpg"
-		) );
+		$backend->prepare( [ 'dir' => "$base/local-public/3/3a" ] );
+		$backend->store( [
+			'src' => "$IP/tests/phpunit/data/parser/headbg.jpg",
+			'dst' => "$base/local-public/3/3a/Foobar.jpg"
+		] );
+		$backend->prepare( [ 'dir' => "$base/local-public/e/ea" ] );
+		$backend->store( [
+			'src' => "$IP/tests/phpunit/data/parser/wiki.png",
+			'dst' => "$base/local-public/e/ea/Thumb.png"
+		] );
+		$backend->prepare( [ 'dir' => "$base/local-public/0/09" ] );
+		$backend->store( [
+			'src' => "$IP/tests/phpunit/data/parser/headbg.jpg",
+			'dst' => "$base/local-public/0/09/Bad.jpg"
+		] );
+		$backend->prepare( [ 'dir' => "$base/local-public/5/5f" ] );
+		$backend->store( [
+			'src' => "$IP/tests/phpunit/data/parser/LoremIpsum.djvu",
+			'dst' => "$base/local-public/5/5f/LoremIpsum.djvu"
+		] );
 
 		// No helpful SVG file to copy, so make one ourselves
 		$data = '<?xml version="1.0" encoding="utf-8"?>' .
-			'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><text>Foo</text></svg>';
+			'<svg xmlns="http://www.w3.org/2000/svg"' .
+			' version="1.1" width="240" height="180"/>';
 
-		$backend->prepare( array( 'dir' => "$base/local-public/f/ff" ) );
-		$backend->quickCreate( array(
+		$backend->prepare( [ 'dir' => "$base/local-public/f/ff" ] );
+		$backend->quickCreate( [
 			'content' => $data, 'dst' => "$base/local-public/f/ff/Foobar.svg"
-		) );
+		] );
 	}
 
 	/**
@@ -482,55 +592,81 @@ class NewParserTest extends MediaWikiTestCase {
 		$base = $this->getBaseDir();
 		// delete the files first, then the dirs.
 		self::deleteFiles(
-			array(
+			[
 				"$base/local-public/3/3a/Foobar.jpg",
-				"$base/local-thumb/3/3a/Foobar.jpg/180px-Foobar.jpg",
-				"$base/local-thumb/3/3a/Foobar.jpg/200px-Foobar.jpg",
-				"$base/local-thumb/3/3a/Foobar.jpg/640px-Foobar.jpg",
+				"$base/local-thumb/3/3a/Foobar.jpg/1000px-Foobar.jpg",
+				"$base/local-thumb/3/3a/Foobar.jpg/100px-Foobar.jpg",
 				"$base/local-thumb/3/3a/Foobar.jpg/120px-Foobar.jpg",
 				"$base/local-thumb/3/3a/Foobar.jpg/1280px-Foobar.jpg",
+				"$base/local-thumb/3/3a/Foobar.jpg/137px-Foobar.jpg",
+				"$base/local-thumb/3/3a/Foobar.jpg/1500px-Foobar.jpg",
+				"$base/local-thumb/3/3a/Foobar.jpg/177px-Foobar.jpg",
+				"$base/local-thumb/3/3a/Foobar.jpg/180px-Foobar.jpg",
+				"$base/local-thumb/3/3a/Foobar.jpg/200px-Foobar.jpg",
+				"$base/local-thumb/3/3a/Foobar.jpg/206px-Foobar.jpg",
 				"$base/local-thumb/3/3a/Foobar.jpg/20px-Foobar.jpg",
+				"$base/local-thumb/3/3a/Foobar.jpg/220px-Foobar.jpg",
+				"$base/local-thumb/3/3a/Foobar.jpg/265px-Foobar.jpg",
 				"$base/local-thumb/3/3a/Foobar.jpg/270px-Foobar.jpg",
+				"$base/local-thumb/3/3a/Foobar.jpg/274px-Foobar.jpg",
 				"$base/local-thumb/3/3a/Foobar.jpg/300px-Foobar.jpg",
 				"$base/local-thumb/3/3a/Foobar.jpg/30px-Foobar.jpg",
+				"$base/local-thumb/3/3a/Foobar.jpg/330px-Foobar.jpg",
+				"$base/local-thumb/3/3a/Foobar.jpg/353px-Foobar.jpg",
 				"$base/local-thumb/3/3a/Foobar.jpg/360px-Foobar.jpg",
 				"$base/local-thumb/3/3a/Foobar.jpg/400px-Foobar.jpg",
 				"$base/local-thumb/3/3a/Foobar.jpg/40px-Foobar.jpg",
+				"$base/local-thumb/3/3a/Foobar.jpg/440px-Foobar.jpg",
+				"$base/local-thumb/3/3a/Foobar.jpg/442px-Foobar.jpg",
+				"$base/local-thumb/3/3a/Foobar.jpg/450px-Foobar.jpg",
+				"$base/local-thumb/3/3a/Foobar.jpg/50px-Foobar.jpg",
+				"$base/local-thumb/3/3a/Foobar.jpg/600px-Foobar.jpg",
+				"$base/local-thumb/3/3a/Foobar.jpg/640px-Foobar.jpg",
 				"$base/local-thumb/3/3a/Foobar.jpg/70px-Foobar.jpg",
+				"$base/local-thumb/3/3a/Foobar.jpg/75px-Foobar.jpg",
 				"$base/local-thumb/3/3a/Foobar.jpg/960px-Foobar.jpg",
 
 				"$base/local-public/e/ea/Thumb.png",
 
 				"$base/local-public/0/09/Bad.jpg",
 
+				"$base/local-public/5/5f/LoremIpsum.djvu",
+				"$base/local-thumb/5/5f/LoremIpsum.djvu/page2-2480px-LoremIpsum.djvu.jpg",
+				"$base/local-thumb/5/5f/LoremIpsum.djvu/page2-3720px-LoremIpsum.djvu.jpg",
+				"$base/local-thumb/5/5f/LoremIpsum.djvu/page2-4960px-LoremIpsum.djvu.jpg",
+
 				"$base/local-public/f/ff/Foobar.svg",
-				"$base/local-thumb/f/ff/Foobar.svg/180px-Foobar.svg.jpg",
-				"$base/local-thumb/f/ff/Foobar.svg/270px-Foobar.svg.jpg",
-				"$base/local-thumb/f/ff/Foobar.svg/360px-Foobar.svg.jpg",
-				"$base/local-thumb/f/ff/Foobar.svg/langde-180px-Foobar.svg.jpg",
-				"$base/local-thumb/f/ff/Foobar.svg/langde-270px-Foobar.svg.jpg",
-				"$base/local-thumb/f/ff/Foobar.svg/langde-360px-Foobar.svg.jpg",
+				"$base/local-thumb/f/ff/Foobar.svg/180px-Foobar.svg.png",
+				"$base/local-thumb/f/ff/Foobar.svg/2000px-Foobar.svg.png",
+				"$base/local-thumb/f/ff/Foobar.svg/270px-Foobar.svg.png",
+				"$base/local-thumb/f/ff/Foobar.svg/3000px-Foobar.svg.png",
+				"$base/local-thumb/f/ff/Foobar.svg/360px-Foobar.svg.png",
+				"$base/local-thumb/f/ff/Foobar.svg/4000px-Foobar.svg.png",
+				"$base/local-thumb/f/ff/Foobar.svg/langde-180px-Foobar.svg.png",
+				"$base/local-thumb/f/ff/Foobar.svg/langde-270px-Foobar.svg.png",
+				"$base/local-thumb/f/ff/Foobar.svg/langde-360px-Foobar.svg.png",
 
 				"$base/local-public/math/f/a/5/fa50b8b616463173474302ca3e63586b.png",
-			)
+			]
 		);
 	}
 
 	/**
 	 * Delete the specified files, if they exist.
-	 * @param $files Array: full paths to files to delete.
+	 * @param array $files Full paths to files to delete.
 	 */
 	private static function deleteFiles( $files ) {
 		$backend = RepoGroup::singleton()->getLocalRepo()->getBackend();
 		foreach ( $files as $file ) {
-			$backend->delete( array( 'src' => $file ), array( 'force' => 1 ) );
+			$backend->delete( [ 'src' => $file ], [ 'force' => 1 ] );
 		}
 		foreach ( $files as $file ) {
-			$tmp = $file;
-			while ( $tmp = FileBackend::parentStoragePath( $tmp ) ) {
-				if ( !$backend->clean( array( 'dir' => $tmp ) )->isOK() ) {
+			$tmp = FileBackend::parentStoragePath( $file );
+			while ( $tmp ) {
+				if ( !$backend->clean( [ 'dir' => $tmp ] )->isOK() ) {
 					break;
 				}
+				$tmp = FileBackend::parentStoragePath( $tmp );
 			}
 		}
 	}
@@ -545,11 +681,12 @@ class NewParserTest extends MediaWikiTestCase {
 			$this->file = $wgParserTestFiles[0];
 		}
 
-		return new TestFileIterator( $this->file, $this );
+		return new TestFileDataProvider( $this->file, $this );
 	}
 
 	/**
 	 * Set the file from whose tests will be run by this instance
+	 * @param string $filename
 	 */
 	public function setParserTestFile( $filename ) {
 		$this->file = $filename;
@@ -557,12 +694,18 @@ class NewParserTest extends MediaWikiTestCase {
 
 	/**
 	 * @group medium
+	 * @group ParserTests
 	 * @dataProvider parserTestProvider
+	 * @param string $desc
+	 * @param string $input
+	 * @param string $result
+	 * @param array $opts
+	 * @param array $config
 	 */
 	public function testParserTest( $desc, $input, $result, $opts, $config ) {
 		if ( $this->regex != '' && !preg_match( '/' . $this->regex . '/', $desc ) ) {
 			$this->assertTrue( true ); // XXX: don't flood output with "test made no assertions"
-			//$this->markTestSkipped( 'Filtered out by the user' );
+			// $this->markTestSkipped( 'Filtered out by the user' );
 			return;
 		}
 
@@ -608,6 +751,20 @@ class NewParserTest extends MediaWikiTestCase {
 			}
 		}
 
+		if ( isset( $opts['djvu'] ) ) {
+			if ( !$this->djVuSupport->isEnabled() ) {
+				$this->markTestSkipped( "SKIPPED: djvu binaries do not exist or are not executable.\n" );
+			}
+		}
+
+		if ( isset( $opts['tidy'] ) ) {
+			if ( !$this->tidySupport->isEnabled() ) {
+				$this->markTestSkipped( "SKIPPED: tidy extension is not installed.\n" );
+			} else {
+				$options->setTidy( true );
+			}
+		}
+
 		if ( isset( $opts['pst'] ) ) {
 			$out = $parser->preSaveTransform( $input, $title, $user, $options );
 		} elseif ( isset( $opts['msg'] ) ) {
@@ -627,6 +784,9 @@ class NewParserTest extends MediaWikiTestCase {
 			$output = $parser->parse( $input, $title, $options, true, true, 1337 );
 			$output->setTOCEnabled( !isset( $opts['notoc'] ) );
 			$out = $output->getText();
+			if ( isset( $opts['tidy'] ) ) {
+				$out = preg_replace( '/\s+$/', '', $out );
+			}
 
 			if ( isset( $opts['showtitle'] ) ) {
 				if ( $output->getTitleText() ) {
@@ -636,22 +796,28 @@ class NewParserTest extends MediaWikiTestCase {
 				$out = "$title\n$out";
 			}
 
+			if ( isset( $opts['showindicators'] ) ) {
+				$indicators = '';
+				foreach ( $output->getIndicators() as $id => $content ) {
+					$indicators .= "$id=$content\n";
+				}
+				$out = $indicators . $out;
+			}
+
 			if ( isset( $opts['ill'] ) ) {
-				$out = $this->tidy( implode( ' ', $output->getLanguageLinks() ) );
+				$out = implode( ' ', $output->getLanguageLinks() );
 			} elseif ( isset( $opts['cat'] ) ) {
 				$outputPage = $context->getOutput();
 				$outputPage->addCategoryLinks( $output->getCategories() );
 				$cats = $outputPage->getCategoryLinks();
 
 				if ( isset( $cats['normal'] ) ) {
-					$out = $this->tidy( implode( ' ', $cats['normal'] ) );
+					$out = implode( ' ', $cats['normal'] );
 				} else {
 					$out = '';
 				}
 			}
 			$parser->mPreprocessor = null;
-
-			$result = $this->tidy( $result );
 		}
 
 		$this->teardownGlobals();
@@ -672,8 +838,8 @@ class NewParserTest extends MediaWikiTestCase {
 
 		$files = $wgParserTestFiles;
 
-		if ( $this->getCliArg( 'file=' ) ) {
-			$files = array( $this->getCliArg( 'file=' ) );
+		if ( $this->getCliArg( 'file' ) ) {
+			$files = [ $this->getCliArg( 'file' ) ];
 		}
 
 		$dict = $this->getFuzzInput( $files );
@@ -722,7 +888,7 @@ class NewParserTest extends MediaWikiTestCase {
 
 			if ( $id % 100 == 0 ) {
 				$usage = intval( memory_get_usage( true ) / $this->memoryLimit / 1048576 * 100 );
-				//echo "{$this->fuzzSeed}: $numSuccess/$numTotal (mem: $usage%)\n";
+				// echo "{$this->fuzzSeed}: $numSuccess/$numTotal (mem: $usage%)\n";
 				if ( $usage > 90 ) {
 					$ret = "Out of memory:\n";
 					$memStats = $this->getMemoryBreakdown();
@@ -739,10 +905,12 @@ class NewParserTest extends MediaWikiTestCase {
 		}
 	}
 
-	//Various getter functions
+	// Various getter functions
 
 	/**
 	 * Get an input dictionary from a set of parser test files
+	 * @param array $filenames
+	 * @return string
 	 */
 	function getFuzzInput( $filenames ) {
 		$dict = '';
@@ -761,9 +929,10 @@ class NewParserTest extends MediaWikiTestCase {
 
 	/**
 	 * Get a memory usage breakdown
+	 * @return array
 	 */
 	function getMemoryBreakdown() {
-		$memStats = array();
+		$memStats = [];
 
 		foreach ( $GLOBALS as $name => $value ) {
 			$memStats['$' . $name] = strlen( serialize( $value ) );
@@ -796,22 +965,24 @@ class NewParserTest extends MediaWikiTestCase {
 
 	/**
 	 * Get a Parser object
+	 * @param Preprocessor $preprocessor
+	 * @return Parser
 	 */
 	function getParser( $preprocessor = null ) {
 		global $wgParserConf;
 
 		$class = $wgParserConf['class'];
-		$parser = new $class( array( 'preprocessorClass' => $preprocessor ) + $wgParserConf );
+		$parser = new $class( [ 'preprocessorClass' => $preprocessor ] + $wgParserConf );
 
-		wfRunHooks( 'ParserTestParser', array( &$parser ) );
+		Hooks::run( 'ParserTestParser', [ &$parser ] );
 
 		return $parser;
 	}
 
-	//Various action functions
+	// Various action functions
 
 	public function addArticle( $name, $text, $line ) {
-		self::$articles[$name] = array( $text, $line );
+		self::$articles[$name] = [ $text, $line ];
 	}
 
 	public function publishTestArticles() {
@@ -830,8 +1001,8 @@ class NewParserTest extends MediaWikiTestCase {
 	 * application to our scary parser. If the hook is not installed,
 	 * abort processing of this file.
 	 *
-	 * @param $name String
-	 * @return Bool true if tag hook is present
+	 * @param string $name
+	 * @return bool True if tag hook is present
 	 */
 	public function requireHook( $name ) {
 		global $wgParser;
@@ -845,27 +1016,18 @@ class NewParserTest extends MediaWikiTestCase {
 		return isset( $wgParser->mFunctionHooks[$name] );
 	}
 
-	//Various "cleanup" functions
-
-	/**
-	 * Run the "tidy" command on text if the $wgUseTidy
-	 * global is true
-	 *
-	 * @param $text String: the text to tidy
-	 * @return String
-	 */
-	protected function tidy( $text ) {
-		global $wgUseTidy;
-
-		if ( $wgUseTidy ) {
-			$text = MWTidy::tidy( $text );
-		}
-
-		return $text;
+	public function requireTransparentHook( $name ) {
+		global $wgParser;
+		$wgParser->firstCallInit(); // make sure hooks are loaded.
+		return isset( $wgParser->mTransparentTagHooks[$name] );
 	}
+
+	// Various "cleanup" functions
 
 	/**
 	 * Remove last character if it is a newline
+	 * @param string $s
+	 * @return string
 	 */
 	public function removeEndingNewline( $s ) {
 		if ( substr( $s, -1 ) === "\n" ) {
@@ -875,10 +1037,10 @@ class NewParserTest extends MediaWikiTestCase {
 		}
 	}
 
-	//Test options parser functions
+	// Test options parser functions
 
 	protected function parseOptions( $instring ) {
-		$opts = array();
+		$opts = [];
 		// foo
 		// foo=bar
 		// foo="bar baz"
@@ -925,7 +1087,7 @@ class NewParserTest extends MediaWikiTestCase {
 					$opts[$key] = $this->cleanupOption( array_shift( $bits ) );
 				} else {
 					// Array!
-					$opts[$key] = array_map( array( $this, 'cleanupOption' ), $bits );
+					$opts[$key] = array_map( [ $this, 'cleanupOption' ], $bits );
 				}
 			}
 		}
@@ -947,9 +1109,10 @@ class NewParserTest extends MediaWikiTestCase {
 
 	/**
 	 * Use a regex to find out the value of an option
-	 * @param $key String: name of option val to retrieve
-	 * @param $opts Options array to look in
-	 * @param $default Mixed: default value returned if not found
+	 * @param string $key Name of option val to retrieve
+	 * @param array $opts Options array to look in
+	 * @param mixed $default Default value returned if not found
+	 * @return mixed
 	 */
 	protected static function getOptionValue( $key, $opts, $default ) {
 		$key = strtolower( $key );

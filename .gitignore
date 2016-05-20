@@ -13,6 +13,7 @@
 .project
 cscope.files
 cscope.out
+*.orig
 ## NetBeans
 nbproject*
 project.index
@@ -25,6 +26,7 @@ sftp-config.json
 /docs/js
 /images/[0-9a-f]
 /images/archive
+/images/cache
 /images/deleted
 /images/lockdir
 /images/math
@@ -46,14 +48,16 @@ sftp-config.json
 
 # Building & testing
 node_modules/
+/tests/phpunit/phpunit.phar
 
 # Composer
 /vendor
 /composer.lock
 /composer.json
+/composer.local.json
 
 # MediaWiki UI documentation
-resources/mediawiki.ui/docs
+/docs/kss/static
 
 # Operating systems
 ## Mac OS X

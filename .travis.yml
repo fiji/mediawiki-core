@@ -4,43 +4,59 @@
 # The Wikimedia Foundation uses a self-hosted Jenkins instance to run unit
 # tests, but it tests code against the version of PHP that is deployed on
 # Wikimedia's production cluster. This Travis CI configuration is designed to
-# complement that setup by testing MediaWiki against HHVM.
+# complement that setup by testing MediaWiki on travis
 #
 language: php
 
-php:
-  - hhvm
+matrix:
+  fast_finish: true
+  include:
+    - env: dbtype=mysql
+      php: 5.5
+    - env: dbtype=postgres
+      php: 5.5
+    - env: dbtype=mysql
+      php: hhvm
+    - env: dbtype=mysql
+      php: 7
 
 services:
   - mysql
 
 branches:
-  # Test changes in master and in Wikimedia's production branches.
+  # Test changes in master and arbitrary Travis CI branches only.
+  # The latter allows developers to enable Travis CI in their GitHub fork of
+  # wikimedia/mediawiki and then push changes they like to test to branches like
+  # "travis-ci/test-this-awesome-change".
   only:
     - master
-    - /^wmf\/.*$/
+    - /^travis-ci\/.*$/
 
 before_install:
   - sudo apt-get install -qq djvulibre-bin tidy
+  - composer self-update --quiet --no-interaction
 
 before_script:
-  # Initialise submodules, in case we're testing a Wikimedia production branch.
-  - git submodule update --init --recursive
-  # Travis CI's HHVM environment provides PHPUnit as a phar file, but
-  # MediaWiki's test suite only works if individual PHPUnit files are
-  # actual files on disk (bug 58881).
-  - composer require 'phpunit/phpunit=3.7.*'
+  - composer install --prefer-source --quiet --no-interaction
+  - if [ "$dbtype" = postgres ]; then psql -c "CREATE DATABASE traviswiki WITH OWNER travis;" -U postgres; fi
   - >
-      php maintenance/install.php testwiki admin
+      php maintenance/install.php traviswiki admin
       --pass travis
+      --dbtype "$dbtype"
       --dbname traviswiki
       --dbuser travis
       --dbpass ""
       --scriptpath "/w"
 
 script:
-  - >
-      hhvm --php
-      -d include_path=".$(printf ':%s' vendor/phpunit/*)"
-      -d date.timezone="Etc/UTC"
-      tests/phpunit/phpunit.php
+  - php tests/phpunit/phpunit.php
+
+notifications:
+  email: false
+  irc:
+    channels:
+      - "chat.freenode.net#mediawiki-core"
+      - "chat.freenode.net#mediawiki-feed"
+    on_success: change
+    on_failure: change
+    skip_join: true
