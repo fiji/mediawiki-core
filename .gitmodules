@@ -475,15 +475,15 @@
 [submodule "extensions/SemanticForms"]
 	path = extensions/SemanticForms
 	url = https://gerrit.wikimedia.org/r/p/mediawiki/extensions/SemanticForms.git
-[submodule "extensions/EmbedVideo"]
-	path = extensions/EmbedVideo
-	url = git://github.com/Whiteknight/mediawiki-embedvideo.git
 [submodule "extensions/Add_HTML_Meta_and_Title"]
 	path = extensions/Add_HTML_Meta_and_Title
 	url = git://github.com/wikimedia/mediawiki-extensions-AddHTMLMetaAndTitle
 [submodule "extensions/EasyTimeline"]
 	path = extensions/EasyTimeline
 	url = git://github.com/wikimedia/mediawiki-extensions-timeline
+[submodule "extensions/EmbedVideo"]
+	path = extensions/EmbedVideo
+	url = git://github.com/Whiteknight/mediawiki-embedvideo.git
 [submodule "extensions/Graph"]
 	path = extensions/Graph
 	url = git://github.com/wikimedia/mediawiki-extensions-Graph
