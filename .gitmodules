@@ -481,9 +481,6 @@
 [submodule "extensions/EasyTimeline"]
 	path = extensions/EasyTimeline
 	url = git://github.com/wikimedia/mediawiki-extensions-timeline
-[submodule "extensions/EmbedVideo"]
-	path = extensions/EmbedVideo
-	url = git://github.com/Whiteknight/mediawiki-embedvideo.git
 [submodule "extensions/Graph"]
 	path = extensions/Graph
 	url = git://github.com/wikimedia/mediawiki-extensions-Graph
