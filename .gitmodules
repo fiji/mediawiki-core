@@ -490,6 +490,9 @@
 [submodule "extensions/JsonConfig"]
 	path = extensions/JsonConfig
 	url = git://github.com/wikimedia/mediawiki-extensions-JsonConfig
+[submodule "extensions/SyntaxHighlighter"]
+	path = extensions/SyntaxHighlighter
+	url = git://github.com/seongjaelee/SyntaxHighlighter
 [submodule "extensions/Tabs"]
 	path = extensions/Tabs
 	url = git://github.com/wikimedia/mediawiki-extensions-Tabs
@@ -511,6 +514,3 @@
 [submodule "skins/Vector"]
 	path = skins/Vector
 	url = git://github.com/wikimedia/mediawiki-skins-Vector
-[submodule "extensions/SyntaxHighlighter"]
-	path = extensions/SyntaxHighlighter
-	url = git://github.com/seongjaelee/SyntaxHighlighter
