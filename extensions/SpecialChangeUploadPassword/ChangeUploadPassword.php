@@ -82,7 +82,7 @@ class SpecialChangeUploadPassword extends SpecialPage {
 			if (!isset($_POST['site'])) return "Nice try.";
 			$updateSiteHint = '';
 			setlocale(LC_ALL, 'en_US.UTF-8');
-			putenv('LC_ALL', 'en_US.UTF-8');
+			putenv('LC_ALL=en_US.UTF-8');
 			if ($_POST['site'] == 'fiji.sc') {
 				if ($wgUser->isAllowed( 'change-upload-password' ) ) {
 					exec("htpasswd -b " . escapeshellarg($wgChangeUploadPasswordFile)
