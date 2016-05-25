@@ -505,12 +505,9 @@
 [submodule "extensions/pChart4mw"]
 	path = extensions/pChart4mw
 	url = git://github.com/Undev/MediaWiki-pChart4mw
-[submodule "skins/MonoBook"]
-	path = skins/MonoBook
-	url = git://github.com/wikimedia/mediawiki-skins-MonoBook
-[submodule "skins/Nostalgia"]
-	path = skins/Nostalgia
-	url = git://github.com/wikimedia/mediawiki-skins-Nostalgia
 [submodule "skins/Vector"]
 	path = skins/Vector
 	url = git://github.com/wikimedia/mediawiki-skins-Vector
+[submodule "skins/erudite"]
+	path = skins/erudite
+	url = git://github.com/wikimedia/mediawiki-skins-erudite
