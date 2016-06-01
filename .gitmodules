@@ -492,7 +492,7 @@
 	url = git://github.com/wikimedia/mediawiki-extensions-JsonConfig
 [submodule "extensions/SyntaxHighlighter"]
 	path = extensions/SyntaxHighlighter
-	url = git://github.com/seongjaelee/SyntaxHighlighter
+	url = git://github.com/imagej/SyntaxHighlighter
 [submodule "extensions/Tabs"]
 	path = extensions/Tabs
 	url = git://github.com/wikimedia/mediawiki-extensions-Tabs
