@@ -52,16 +52,6 @@ class SpecialChangeUploadPassword extends SpecialPage {
 		if ($wgUser->isEmailConfirmed()) {
 			return $this->showForm();
 		} else {
-			global $wgTitle;
-			$skin = $wgUser->getSkin();
-			$loginTitle = SpecialPage::getTitleFor( 'Userlogin', 'emailconfirmed' );
-			$loginLink = $skin->link(
-					$loginTitle,
-					'log in',
-					array(),
-					array( 'returnto' => $wgTitle->getPrefixedText() ),
-					array( 'known', 'noclasses' )
-					);
 			return 'This page is restricted to <i>authenticated</i> users only.';
 		}
 	}
