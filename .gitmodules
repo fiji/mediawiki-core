@@ -496,9 +496,6 @@
 [submodule "extensions/Tabs"]
 	path = extensions/Tabs
 	url = git://github.com/wikimedia/mediawiki-extensions-Tabs
-[submodule "extensions/Topbar"]
-	path = extensions/Topbar
-	url = git://github.com/kkragenbrink/Topbar
 [submodule "extensions/Widgets"]
 	path = extensions/Widgets
 	url = git://github.com/wikimedia/mediawiki-extensions-Widgets
