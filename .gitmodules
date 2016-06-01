@@ -511,3 +511,6 @@
 [submodule "skins/erudite"]
 	path = skins/erudite
 	url = git://github.com/wikimedia/mediawiki-skins-erudite
+[submodule "skins/foreground"]
+	path = skins/foreground
+	url = git://github.com/thingles/foreground
