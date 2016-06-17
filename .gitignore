@@ -81,3 +81,6 @@ Thumbs.db
 /_images
 /awesome
 /visitors/
+
+# Let's Encrypt
+/.well-known/
