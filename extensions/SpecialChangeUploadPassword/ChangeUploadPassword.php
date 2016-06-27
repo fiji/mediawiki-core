@@ -29,7 +29,8 @@ function wfChangePersonalUploadPassword($userName, $password, &$output, &$return
 	exec("ssh -F " . escapeshellarg($conf . 'ssh_config')
 		. " -o StrictHostKeyChecking=yes"
 		. " -o UserKnownHostsFile=" . escapeshellarg($conf . 'known_hosts')
-		. " sites "
+		. " sites " // server name
+		. "./handle-request.sh " // command
 		. escapeshellarg($userName . ' ' . $password) . ' 2>&1',
 		$output, $return);
 }
