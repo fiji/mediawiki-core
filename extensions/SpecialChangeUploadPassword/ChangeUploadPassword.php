@@ -31,7 +31,7 @@ function wfChangePersonalUploadPassword($userName, $password, &$output, &$return
 		. " -o UserKnownHostsFile=" . escapeshellarg($conf . 'known_hosts')
 		. " sites " // server name
 		. "./handle-request.sh " // command
-		. escapeshellarg($userName . ' ' . $password) . ' 2>&1',
+		. escapeshellarg($userName . '  "' . $password . '"') . ' 2>&1',
 		$output, $return);
 }
 
