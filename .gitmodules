@@ -487,6 +487,9 @@
 [submodule "extensions/GraphViz"]
 	path = extensions/GraphViz
 	url = git://github.com/wikimedia/mediawiki-extensions-GraphViz
+[submodule "extensions/Maps"]
+	path = extensions/Maps
+	url = git@github.com:JeroenDeDauw/Maps.git
 [submodule "extensions/JsonConfig"]
 	path = extensions/JsonConfig
 	url = git://github.com/wikimedia/mediawiki-extensions-JsonConfig
