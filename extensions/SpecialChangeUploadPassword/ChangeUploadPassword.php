@@ -122,7 +122,15 @@ class SpecialChangeUploadPassword extends SpecialPage {
 				. $wgUser->getName() . '/">personal update site</a></input>'
 				. '</td></tr>';
 		}
-		return '<h1>Initialize or change upload password for ' . $wgUser->getName()
+		return '<p>This page allows you to change your password for '
+			. '<a href="http://imagej.net/How_to_set_up_and_populate_an_update_site">uploading to ImageJ update sites</a>.</p>'
+			. '<p>This password is <strong><em>distinct</em></strong> from your wiki account password! '
+			. 'In other words: it is used only when uploading via the '
+			. '<a href="http://imagej.net/Updater">ImageJ Updater</a>&mdash;not for logging in to the wiki.</p>'
+			. '<p>Please note that there is <strong><em>currently a bug with special characters</em></strong> '
+			. 'including <code>$</code>, <code>|</code> and <code>^</code> (and probably others). '
+			. 'Currently, we recommend choosing a long (>24) password of only alphameric characters.</p>'
+			. '<h1>Initialize or change upload password for ' . $wgUser->getName()
 			. "</h1>\n"
 			. '<form method="POST" accept-charset="UTF-8">'
 			. '<table>' . $siteChoice
