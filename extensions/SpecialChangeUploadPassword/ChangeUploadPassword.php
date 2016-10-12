@@ -26,13 +26,15 @@ function wfSpecialChangeUploadPasswordMessagesPreLoad( $title, &$text ) {
 
 function wfChangePersonalUploadPassword($userName, $password, &$output, &$return) {
 	$conf = $_SERVER['DOCUMENT_ROOT'] . '/../conf/';
-	exec("ssh -F " . escapeshellarg($conf . 'ssh_config')
-		. " -o StrictHostKeyChecking=yes"
-		. " -o UserKnownHostsFile=" . escapeshellarg($conf . 'known_hosts')
-		. " sites " // server name
-		. "./handle-request.sh " // command
-		. escapeshellarg($userName . '  "' . $password . '"') . ' 2>&1',
-		$output, $return);
+	$output = ["Password changing is temporarily disabled. Back soon.\n"];
+	$return = 0;
+#	exec("ssh -F " . escapeshellarg($conf . 'ssh_config')
+#		. " -o StrictHostKeyChecking=yes"
+#		. " -o UserKnownHostsFile=" . escapeshellarg($conf . 'known_hosts')
+#		. " sites " // server name
+#		. "./handle-request.sh " // command
+#		. escapeshellarg($userName . '  "' . $password . '"') . ' 2>&1',
+#		$output, $return);
 }
 
 class SpecialChangeUploadPassword extends SpecialPage {
