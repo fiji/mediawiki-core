@@ -24,7 +24,7 @@ function wfSpecialChangeUploadPasswordMessagesPreLoad( $title, &$text ) {
      return true;
 }
 
-function wfChangePersonalUploadPassword($userName, $password, &$output, &$return) {
+function wfChangeUploadPassword($userName, $password, &$output, &$return) {
 	$conf = $_SERVER['DOCUMENT_ROOT'] . '/../conf/';
 	$output = ["Password changing is temporarily disabled. Back soon.\n"];
 	$return = 0;
@@ -88,7 +88,7 @@ class SpecialChangeUploadPassword extends SpecialPage {
 					return "Nice try!";
 				}
 			} elseif ($_POST['site'] == 'private') {
-				wfChangePersonalUploadPassword($wgUser->getName(), $_POST['password'], $output, $return);
+				wfChangeUploadPassword($wgUser->getName(), $_POST['password'], $output, $return);
 				$updateSiteHint = "To upload, add a new update site (check 'for upload' before clicking 'Add')\n"
 					. "or change your existing one. You need to set the URL to \n"
 					. "\thttp://sites.imagej.net/" . $wgUser->getName() . "/\n"
@@ -202,7 +202,7 @@ class ApiChangeUploadPassword extends ApiBase {
 			$this->dieUsageMsg( 'badaccess-group0' );
 		}
 		$params = $this->extractRequestParams();
-		wfChangePersonalUploadPassword($currentUser->getName(), $params[ 'password' ], $output, $return);
+		wfChangeUploadPassword($currentUser->getName(), $params[ 'password' ], $output, $return);
 		$this->getResult()->addValue(
 			null,
 			$this->getModuleName(),
