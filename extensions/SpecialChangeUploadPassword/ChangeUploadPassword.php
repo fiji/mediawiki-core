@@ -76,18 +76,7 @@ class SpecialChangeUploadPassword extends SpecialPage {
 			$updateSiteHint = '';
 			setlocale(LC_ALL, 'en_US.UTF-8');
 			putenv('LC_ALL=en_US.UTF-8');
-			if ($_POST['site'] == 'fiji.sc') {
-				if ($wgUser->isAllowed( 'change-upload-password' ) ) {
-					exec("htpasswd -b " . escapeshellarg($wgChangeUploadPasswordFile)
-						. " " . escapeshellarg($wgUser->getName()) . " "
-						. escapeshellarg($_POST['password']), $output, $return);
-					$updateSiteHint = "To upload, change the sshHost of the 'Fiji' update site to\n"
-						.  "\twebdav:" . $wgUser->getName() . "\n"
-						. "in Advanced Mode's 'Manage Update Sites'.\n";
-				} else {
-					return "Nice try!";
-				}
-			} elseif ($_POST['site'] == 'private') {
+			if ($_POST['site'] == 'private') {
 				wfChangeUploadPassword($wgUser->getName(), $_POST['password'], $output, $return);
 				$updateSiteHint = "To upload, add a new update site (check 'for upload' before clicking 'Add')\n"
 					. "or change your existing one. You need to set the URL to \n"
@@ -117,13 +106,6 @@ class SpecialChangeUploadPassword extends SpecialPage {
 			return $html;
 		}
 		$siteChoice = '<input type="hidden" name="site" value="private">';
-		if ( $wgUser->isAllowed( 'change-upload-password' ) ) {
-			$siteChoice = '<tr><td>Update site</td><td>'
-				. '<input type="radio" name="site" value="fiji.sc" checked>The Fiji update site</input><br />'
-				. '<input type="radio" name="site" value="private">Your <a href="http://sites.imagej.net/'
-				. $wgUser->getName() . '/">personal update site</a></input>'
-				. '</td></tr>';
-		}
 		return '<p>This page allows you to change your password for '
 			. '<a href="http://imagej.net/How_to_set_up_and_populate_an_update_site">uploading to ImageJ update sites</a>.</p>'
 			. '<p>This password is <strong><em>distinct</em></strong> from your wiki account password! '
