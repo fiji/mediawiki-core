@@ -28,8 +28,7 @@ function wfChangeUploadPassword($userName, $password, &$output, &$return) {
 	$output = ["Password changing is temporarily disabled. Back soon.\n"];
 	exec("sh /var/www/vhosts/imagej.net/bin/change-sites-upload-password.sh"
 		. " " . escapeshellarg($userName) 
-		. " " . escapeshellarg($password)
-		. " &", $output, $return);
+		. " " . escapeshellarg($password), $output, $return);
 }
 
 class SpecialChangeUploadPassword extends SpecialPage {
