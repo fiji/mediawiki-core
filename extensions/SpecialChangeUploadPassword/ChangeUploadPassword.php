@@ -25,21 +25,11 @@ function wfSpecialChangeUploadPasswordMessagesPreLoad( $title, &$text ) {
 }
 
 function wfChangeUploadPassword($userName, $password, &$output, &$return) {
-	$conf = $_SERVER['DOCUMENT_ROOT'] . '/../conf/';
 	$output = ["Password changing is temporarily disabled. Back soon.\n"];
 	exec("sh /var/www/vhosts/imagej.net/bin/change-sites-upload-password.sh"
 		. " " . escapeshellarg($userName) 
 		. " " . escapeshellarg($password)
 		. " &", $output, $return);
-#	$return = 0;
-	
-#	exec("ssh -F " . escapeshellarg($conf . 'ssh_config')
-#		. " -o StrictHostKeyChecking=yes"
-#		. " -o UserKnownHostsFile=" . escapeshellarg($conf . 'known_hosts')
-#		. " sites " // server name
-#		. "./handle-request.sh " // command
-#		. escapeshellarg($userName . '  "' . $password . '"') . ' 2>&1',
-#		$output, $return);
 }
 
 class SpecialChangeUploadPassword extends SpecialPage {
