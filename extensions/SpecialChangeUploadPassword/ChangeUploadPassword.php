@@ -26,7 +26,7 @@ function wfSpecialChangeUploadPasswordMessagesPreLoad( $title, &$text ) {
 
 function wfChangeUploadPassword($userName, $password, &$output, &$return) {
 	exec("sh /var/www/vhosts/imagej.net/bin/change-sites-upload-password.sh"
-		. " " . escapeshellarg($userName) 
+		. " " . escapeshellarg($userName)
 		. " " . escapeshellarg($password), $output, $return);
 }
 
