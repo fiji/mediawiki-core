@@ -517,3 +517,6 @@
 [submodule "extensions/OpenGraphMeta"]
 	path = extensions/OpenGraphMeta
 	url = git://github.com/wikimedia/mediawiki-extensions-OpenGraphMeta
+[submodule "extensions/Description2"]
+	path = extensions/Description2
+	url = git://github.com/wikimedia/mediawiki-extensions-Description2.git
