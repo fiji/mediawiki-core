@@ -514,3 +514,6 @@
 [submodule "skins/foreground"]
 	path = skins/foreground
 	url = git://github.com/thingles/foreground
+[submodule "extensions/OpenGraphMeta"]
+	path = extensions/OpenGraphMeta
+	url = git://github.com/wikimedia/mediawiki-extensions-OpenGraphMeta
