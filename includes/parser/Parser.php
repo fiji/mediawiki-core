@@ -20,6 +20,9 @@
  * @file
  * @ingroup Parser
  */
+use MediaWiki\Linker\LinkRenderer;
+use MediaWiki\MediaWikiServices;
+use Wikimedia\ScopedCallback;
 
 /**
  * @defgroup Parser Parser
@@ -249,6 +252,11 @@ class Parser {
 	protected $mProfiler;
 
 	/**
+	 * @var LinkRenderer
+	 */
+	protected $mLinkRenderer;
+
+	/**
 	 * @param array $conf
 	 */
 	public function __construct( $conf = [] ) {
@@ -388,7 +396,8 @@ class Parser {
 	 * @param int $revid Number to pass in {{REVISIONID}}
 	 * @return ParserOutput A ParserOutput
 	 */
-	public function parse( $text, Title $title, ParserOptions $options,
+	public function parse(
+		$text, Title $title, ParserOptions $options,
 		$linestart = true, $clearState = true, $revid = null
 	) {
 		/**
@@ -455,6 +464,10 @@ class Parser {
 			}
 		}
 
+		# Done parsing! Compute runtime adaptive expiry if set
+		$this->mOutput->finalizeAdaptiveCacheExpiry();
+
+		# Warn if too many heavyweight parser functions were used
 		if ( $this->mExpensiveFunctionCount > $this->mOptions->getExpensiveParserFunctionLimit() ) {
 			$this->limitationWarn( 'expensive-parserfunction',
 				$this->mExpensiveFunctionCount,
@@ -889,17 +902,35 @@ class Parser {
 	}
 
 	/**
+	 * Get a LinkRenderer instance to make links with
+	 *
+	 * @since 1.28
+	 * @return LinkRenderer
+	 */
+	public function getLinkRenderer() {
+		if ( !$this->mLinkRenderer ) {
+			$this->mLinkRenderer = MediaWikiServices::getInstance()
+				->getLinkRendererFactory()->create();
+			$this->mLinkRenderer->setStubThreshold(
+				$this->getOptions()->getStubThreshold()
+			);
+		}
+
+		return $this->mLinkRenderer;
+	}
+
+	/**
 	 * Replaces all occurrences of HTML-style comments and the given tags
 	 * in the text with a random marker and returns the next text. The output
 	 * parameter $matches will be an associative array filled with data in
 	 * the form:
 	 *
 	 * @code
-	 *   'UNIQ-xxxxx' => array(
+	 *   'UNIQ-xxxxx' => [
 	 *     'element',
 	 *     'tag content',
-	 *     array( 'param' => 'x' ),
-	 *     '<element param="x">tag content</element>' ) )
+	 *     [ 'param' => 'x' ],
+	 *     '<element param="x">tag content</element>' ]
 	 * @endcode
 	 *
 	 * @param array $elements List of element names. Comments are always extracted.
@@ -1239,7 +1270,9 @@ class Parser {
 			$text,
 			[ &$this, 'attributeStripCallback' ],
 			false,
-			array_keys( $this->mTransparentTagHooks )
+			array_keys( $this->mTransparentTagHooks ),
+			[],
+			[ &$this, 'addTrackingCategory' ]
 		);
 		Hooks::run( 'InternalParseBeforeLinks', [ &$this, &$text, &$this->mStripState ] );
 
@@ -1328,9 +1361,10 @@ class Parser {
 
 		$text = Sanitizer::normalizeCharReferences( $text );
 
-		if ( MWTidy::isEnabled() && $this->mOptions->getTidy() ) {
-			$text = MWTidy::tidy( $text );
-			$this->mOutput->addModuleStyles( MWTidy::getModuleStyles() );
+		if ( MWTidy::isEnabled() ) {
+			if ( $this->mOptions->getTidy() ) {
+				$text = MWTidy::tidy( $text );
+			}
 		} else {
 			# attempt to sanitize at least some nesting problems
 			# (bug #2702 and quite a few others)
@@ -1420,22 +1454,33 @@ class Parser {
 		} elseif ( isset( $m[5] ) && $m[5] !== '' ) {
 			# RFC or PMID
 			if ( substr( $m[0], 0, 3 ) === 'RFC' ) {
+				if ( !$this->mOptions->getMagicRFCLinks() ) {
+					return $m[0];
+				}
 				$keyword = 'RFC';
 				$urlmsg = 'rfcurl';
 				$cssClass = 'mw-magiclink-rfc';
+				$trackingCat = 'magiclink-tracking-rfc';
 				$id = $m[5];
 			} elseif ( substr( $m[0], 0, 4 ) === 'PMID' ) {
+				if ( !$this->mOptions->getMagicPMIDLinks() ) {
+					return $m[0];
+				}
 				$keyword = 'PMID';
 				$urlmsg = 'pubmedurl';
 				$cssClass = 'mw-magiclink-pmid';
+				$trackingCat = 'magiclink-tracking-pmid';
 				$id = $m[5];
 			} else {
 				throw new MWException( __METHOD__ . ': unrecognised match type "' .
 					substr( $m[0], 0, 20 ) . '"' );
 			}
 			$url = wfMessage( $urlmsg, $id )->inContentLanguage()->text();
-			return Linker::makeExternalLink( $url, "{$keyword} {$id}", true, $cssClass );
-		} elseif ( isset( $m[6] ) && $m[6] !== '' ) {
+			$this->addTrackingCategory( $trackingCat );
+			return Linker::makeExternalLink( $url, "{$keyword} {$id}", true, $cssClass, [], $this->mTitle );
+		} elseif ( isset( $m[6] ) && $m[6] !== ''
+			&& $this->mOptions->getMagicISBNLinks()
+		) {
 			# ISBN
 			$isbn = $m[6];
 			$space = self::SPACE_NOT_NL; #  non-newline space
@@ -1445,10 +1490,15 @@ class Parser {
 				' ' => '',
 				'x' => 'X',
 			] );
-			$titleObj = SpecialPage::getTitleFor( 'Booksources', $num );
-			return '<a href="' .
-				htmlspecialchars( $titleObj->getLocalURL() ) .
-				"\" class=\"internal mw-magiclink-isbn\">ISBN $isbn</a>";
+			$this->addTrackingCategory( 'magiclink-tracking-isbn' );
+			return $this->getLinkRenderer()->makeKnownLink(
+				SpecialPage::getTitleFor( 'Booksources', $num ),
+				"ISBN $isbn",
+				[
+					'class' => 'internal mw-magiclink-isbn',
+					'title' => false // suppress title attribute
+				]
+			);
 		} else {
 			return $m[0];
 		}
@@ -1522,7 +1572,7 @@ class Parser {
 			$text = Linker::makeExternalLink( $url,
 				$this->getConverterLanguage()->markNoConversion( $url, true ),
 				true, 'free',
-				$this->getExternalLinkAttribs( $url ) );
+				$this->getExternalLinkAttribs( $url ), $this->mTitle );
 			# Register it in the output object...
 			# Replace unnecessary URL escape codes with their equivalent characters
 			$pasteurized = self::normalizeLinkUrl( $url );
@@ -1752,7 +1802,7 @@ class Parser {
 	 * Replace external links (REL)
 	 *
 	 * Note: this is all very hackish and the order of execution matters a lot.
-	 * Make sure to run tests/parserTests.php if you change this code.
+	 * Make sure to run tests/parser/parserTests.php if you change this code.
 	 *
 	 * @private
 	 *
@@ -1819,7 +1869,7 @@ class Parser {
 			# Funny characters like ö aren't valid in URLs anyway
 			# This was changed in August 2004
 			$s .= Linker::makeExternalLink( $url, $text, false, $linktype,
-				$this->getExternalLinkAttribs( $url ) ) . $dtrail . $trail;
+				$this->getExternalLinkAttribs( $url ), $this->mTitle ) . $dtrail . $trail;
 
 			# Register link in the output object.
 			# Replace unnecessary URL escape codes with the referenced character
@@ -1857,11 +1907,11 @@ class Parser {
 	 * (depending on configuration, namespace, and the URL's domain) and/or a
 	 * target attribute (depending on configuration).
 	 *
-	 * @param string|bool $url Optional URL, to extract the domain from for rel =>
+	 * @param string $url URL to extract the domain from for rel =>
 	 *   nofollow if appropriate
 	 * @return array Associative array of HTML attributes
 	 */
-	public function getExternalLinkAttribs( $url = false ) {
+	public function getExternalLinkAttribs( $url ) {
 		$attribs = [];
 		$rel = self::getExternalLinkRel( $url, $this->mTitle );
 
@@ -2140,7 +2190,7 @@ class Parser {
 				$might_be_img = true;
 				$text = $m[2];
 				if ( strpos( $m[1], '%' ) !== false ) {
-					$m[1] = rawurldecode( $m[1] );
+					$m[1] = str_replace( [ '<', '>' ], [ '&lt;', '&gt;' ], rawurldecode( $m[1] ) );
 				}
 				$trail = "";
 			} else { # Invalid form; output directly
@@ -2271,13 +2321,9 @@ class Parser {
 						# cloak any absolute URLs inside the image markup, so replaceExternalLinks() won't touch them
 						$s .= $prefix . $this->armorLinks(
 							$this->makeImage( $nt, $text, $holders ) ) . $trail;
-					} else {
-						$s .= $prefix . $trail;
+						continue;
 					}
-					continue;
-				}
-
-				if ( $ns == NS_CATEGORY ) {
+				} elseif ( $ns == NS_CATEGORY ) {
 					$s = rtrim( $s . "\n" ); # bug 87
 
 					if ( $wasblank ) {
@@ -2329,7 +2375,7 @@ class Parser {
 			# batch file existence checks for NS_FILE and NS_MEDIA
 			if ( $iw == '' && $nt->isAlwaysKnown() ) {
 				$this->mOutput->addLink( $nt );
-				$s .= $this->makeKnownLinkHolder( $nt, $text, [], $trail, $prefix );
+				$s .= $this->makeKnownLinkHolder( $nt, $text, $trail, $prefix );
 			} else {
 				# Links will be added to the output link list after checking
 				$s .= $holders->makeHolder( $nt, $text, [], $trail, $prefix );
@@ -2347,22 +2393,20 @@ class Parser {
 	 *
 	 * @param Title $nt
 	 * @param string $text
-	 * @param array|string $query
 	 * @param string $trail
 	 * @param string $prefix
 	 * @return string HTML-wikitext mix oh yuck
 	 */
-	public function makeKnownLinkHolder( $nt, $text = '', $query = [], $trail = '', $prefix = '' ) {
+	protected function makeKnownLinkHolder( $nt, $text = '', $trail = '', $prefix = '' ) {
 		list( $inside, $trail ) = Linker::splitTrail( $trail );
 
-		if ( is_string( $query ) ) {
-			$query = wfCgiToArray( $query );
-		}
 		if ( $text == '' ) {
 			$text = htmlspecialchars( $nt->getPrefixedText() );
 		}
 
-		$link = Linker::linkKnown( $nt, "$prefix$text$inside", [], $query );
+		$link = $this->getLinkRenderer()->makeKnownLink(
+			$nt, new HtmlArmor( "$prefix$text$inside" )
+		);
 
 		return $this->armorLinks( $link ) . $trail;
 	}
@@ -2577,9 +2621,13 @@ class Parser {
 			case 'revisionid':
 				# Let the edit saving system know we should parse the page
 				# *after* a revision ID has been assigned.
-				$this->mOutput->setFlag( 'vary-revision' );
-				wfDebug( __METHOD__ . ": {{REVISIONID}} used, setting vary-revision...\n" );
+				$this->mOutput->setFlag( 'vary-revision-id' );
+				wfDebug( __METHOD__ . ": {{REVISIONID}} used, setting vary-revision-id...\n" );
 				$value = $this->mRevisionId;
+				if ( !$value && $this->mOptions->getSpeculativeRevIdCallback() ) {
+					$value = call_user_func( $this->mOptions->getSpeculativeRevIdCallback() );
+					$this->mOutput->setSpeculativeRevIdUsed( $value );
+				}
 				break;
 			case 'revisionday':
 				# Let the edit saving system know we should parse the page
@@ -2625,16 +2673,12 @@ class Parser {
 				break;
 			case 'revisionuser':
 				# Let the edit saving system know we should parse the page
-				# *after* a revision ID has been assigned. This is for null edits.
-				$this->mOutput->setFlag( 'vary-revision' );
-				wfDebug( __METHOD__ . ": {{REVISIONUSER}} used, setting vary-revision...\n" );
+				# *after* a revision ID has been assigned for null edits.
+				$this->mOutput->setFlag( 'vary-user' );
+				wfDebug( __METHOD__ . ": {{REVISIONUSER}} used, setting vary-user...\n" );
 				$value = $this->getRevisionUser();
 				break;
 			case 'revisionsize':
-				# Let the edit saving system know we should parse the page
-				# *after* a revision ID has been assigned. This is for null edits.
-				$this->mOutput->setFlag( 'vary-revision' );
-				wfDebug( __METHOD__ . ": {{REVISIONSIZE}} used, setting vary-revision...\n" );
 				$value = $this->getRevisionSize();
 				break;
 			case 'namespace':
@@ -3106,6 +3150,7 @@ class Parser {
 					&& $this->mOptions->getAllowSpecialInclusion()
 					&& $this->ot['html']
 				) {
+					$specialPage = SpecialPageFactory::getPage( $title->getDBkey() );
 					// Pass the template arguments as URL parameters.
 					// "uselang" will have no effect since the Language object
 					// is forced to the one defined in ParserOptions.
@@ -3124,15 +3169,25 @@ class Parser {
 					$context = new RequestContext;
 					$context->setTitle( $title );
 					$context->setRequest( new FauxRequest( $pageArgs ) );
-					$context->setUser( $this->getUser() );
+					if ( $specialPage && $specialPage->maxIncludeCacheTime() === 0 ) {
+						$context->setUser( $this->getUser() );
+					} else {
+						// If this page is cached, then we better not be per user.
+						$context->setUser( User::newFromName( '127.0.0.1', false ) );
+					}
 					$context->setLanguage( $this->mOptions->getUserLangObj() );
-					$ret = SpecialPageFactory::capturePath( $title, $context );
+					$ret = SpecialPageFactory::capturePath(
+						$title, $context, $this->getLinkRenderer() );
 					if ( $ret ) {
 						$text = $context->getOutput()->getHTML();
 						$this->mOutput->addOutputPageMetadata( $context->getOutput() );
 						$found = true;
 						$isHTML = true;
-						$this->disableCache();
+						if ( $specialPage && $specialPage->maxIncludeCacheTime() !== false ) {
+							$this->mOutput->updateRuntimeAdaptiveExpiry(
+								$specialPage->maxIncludeCacheTime()
+							);
+						}
 					}
 				} elseif ( MWNamespace::isNonincludable( $title->getNamespace() ) ) {
 					$found = false; # access denied
@@ -3430,10 +3485,18 @@ class Parser {
 	 * @since 1.24
 	 * @param Title $title
 	 * @param Parser|bool $parser
-	 * @return Revision
+	 * @return Revision|bool False if missing
 	 */
-	public static function statelessFetchRevision( $title, $parser = false ) {
-		return Revision::newFromTitle( $title );
+	public static function statelessFetchRevision( Title $title, $parser = false ) {
+		$pageId = $title->getArticleID();
+		$revId = $title->getLatestRevID();
+
+		$rev = Revision::newKnownCurrent( wfGetDB( DB_REPLICA ), $pageId, $revId );
+		if ( $rev ) {
+			$rev->setTitle( $title );
+		}
+
+		return $rev;
 	}
 
 	/**
@@ -3648,7 +3711,7 @@ class Parser {
 	 */
 	public function fetchScaryTemplateMaybeFromCache( $url ) {
 		global $wgTranscludeCacheExpiry;
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$tsCond = $dbr->timestamp( time() - $wgTranscludeCacheExpiry );
 		$obj = $dbr->selectRow( 'transcache', [ 'tc_time', 'tc_contents' ],
 				[ 'tc_url' => $url, "tc_time >= " . $dbr->addQuotes( $tsCond ) ] );
@@ -3740,9 +3803,28 @@ class Parser {
 	 * @return string
 	 */
 	public function extensionSubstitution( $params, $frame ) {
+		static $errorStr = '<span class="error">';
+		static $errorLen = 20;
+
 		$name = $frame->expand( $params['name'] );
+		if ( substr( $name, 0, $errorLen ) === $errorStr ) {
+			// Probably expansion depth or node count exceeded. Just punt the
+			// error up.
+			return $name;
+		}
+
 		$attrText = !isset( $params['attr'] ) ? null : $frame->expand( $params['attr'] );
+		if ( substr( $attrText, 0, $errorLen ) === $errorStr ) {
+			// See above
+			return $attrText;
+		}
+
 		$content = !isset( $params['inner'] ) ? null : $frame->expand( $params['inner'] );
+		if ( substr( $content, 0, $errorLen ) === $errorStr ) {
+			// See above
+			return $content;
+		}
+
 		$marker = self::MARKER_PREFIX . "-$name-"
 			. sprintf( '%08X', $this->mMarkerIndex++ ) . self::MARKER_SUFFIX;
 
@@ -3800,6 +3882,10 @@ class Parser {
 				$output = "<$name$attrText/>";
 			} else {
 				$close = is_null( $params['close'] ) ? '' : $frame->expand( $params['close'] );
+				if ( substr( $close, 0, $errorLen ) === $errorStr ) {
+					// See above
+					return $close;
+				}
 				$output = "<$name$attrText>$content$close";
 			}
 		}
@@ -4094,12 +4180,13 @@ class Parser {
 			# * <b> (r105284)
 			# * <bdi> (bug 72884)
 			# * <span dir="rtl"> and <span dir="ltr"> (bug 35167)
+			# * <s> and <strike> (T35715)
 			# We strip any parameter from accepted tags (second regex), except dir="rtl|ltr" from <span>,
 			# to allow setting directionality in toc items.
 			$tocline = preg_replace(
 				[
-					'#<(?!/?(span|sup|sub|bdi|i|b)(?: [^>]*)?>).*?>#',
-					'#<(/?(?:span(?: dir="(?:rtl|ltr)")?|sup|sub|bdi|i|b))(?: .*?)?>#'
+					'#<(?!/?(span|sup|sub|bdi|i|b|s|strike)(?: [^>]*)?>).*?>#',
+					'#<(/?(?:span(?: dir="(?:rtl|ltr)")?|sup|sub|bdi|i|b|s|strike))(?: .*?)?>#'
 				],
 				[ '', '<$1>' ],
 				$safeHeadline
@@ -4344,11 +4431,11 @@ class Parser {
 		$this->startParse( $title, $options, self::OT_WIKI, $clearState );
 		$this->setUser( $user );
 
-		$pairs = [
-			"\r\n" => "\n",
-			"\r" => "\n",
-		];
-		$text = str_replace( array_keys( $pairs ), array_values( $pairs ), $text );
+		// We still normalize line endings for backwards-compatibility
+		// with other code that just calls PST, but this should already
+		// be handled in TextContent subclasses
+		$text = TextContent::normalizeLineEndings( $text );
+
 		if ( $options->getPreSaveTransform() ) {
 			$text = $this->pstPass2( $text, $user );
 		}
@@ -4425,9 +4512,6 @@ class Parser {
 			# if there's no context, don't bother duplicating the title
 			$text = preg_replace( $p2, '[[\\1]]', $text );
 		}
-
-		# Trim trailing whitespace
-		$text = rtrim( $text );
 
 		return $text;
 	}
@@ -5275,6 +5359,7 @@ class Parser {
 	/**
 	 * Set a flag in the output object indicating that the content is dynamic and
 	 * shouldn't be cached.
+	 * @deprecated since 1.28; use getOutput()->updateCacheExpiry()
 	 */
 	public function disableCache() {
 		wfDebug( "Parser output marked as uncacheable.\n" );
@@ -5614,7 +5699,7 @@ class Parser {
 			# will change the size.
 			if ( $revObject ) {
 				$this->mRevisionSize = $revObject->getSize();
-			} elseif ( $this->ot['wiki'] || $this->mOptions->getIsPreview() ) {
+			} else {
 				$this->mRevisionSize = $this->mInputSize;
 			}
 		}

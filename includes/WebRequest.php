@@ -23,6 +23,7 @@
  * @file
  */
 
+use MediaWiki\MediaWikiServices;
 use MediaWiki\Session\Session;
 use MediaWiki\Session\SessionId;
 use MediaWiki\Session\SessionManager;
@@ -83,6 +84,9 @@ class WebRequest {
 	/** @var bool Whether this HTTP request is "safe" (even if it is an HTTP post) */
 	protected $markedAsSafe = false;
 
+	/**
+	 * @codeCoverageIgnore
+	 */
 	public function __construct() {
 		$this->requestTime = isset( $_SERVER['REQUEST_TIME_FLOAT'] )
 			? $_SERVER['REQUEST_TIME_FLOAT'] : microtime( true );
@@ -351,7 +355,7 @@ class WebRequest {
 	 * @return array|string Cleaned-up version of the given
 	 * @private
 	 */
-	function normalizeUnicode( $data ) {
+	public function normalizeUnicode( $data ) {
 		if ( is_array( $data ) ) {
 			foreach ( $data as $key => $val ) {
 				$data[$key] = $this->normalizeUnicode( $val );
@@ -391,6 +395,32 @@ class WebRequest {
 			return $data;
 		} else {
 			return $default;
+		}
+	}
+
+	/**
+	 * Fetch a scalar from the input without normalization, or return $default
+	 * if it's not set.
+	 *
+	 * Unlike self::getVal(), this does not perform any normalization on the
+	 * input value.
+	 *
+	 * @since 1.28
+	 * @param string $name
+	 * @param string|null $default Optional default
+	 * @return string
+	 */
+	public function getRawVal( $name, $default = null ) {
+		$name = strtr( $name, '.', '_' ); // See comment in self::getGPCVal()
+		if ( isset( $this->data[$name] ) && !is_array( $this->data[$name] ) ) {
+			$val = $this->data[$name];
+		} else {
+			$val = $default;
+		}
+		if ( is_null( $val ) ) {
+			return $val;
+		} else {
+			return (string)$val;
 		}
 	}
 
@@ -491,7 +521,7 @@ class WebRequest {
 	 * @return int
 	 */
 	public function getInt( $name, $default = 0 ) {
-		return intval( $this->getVal( $name, $default ) );
+		return intval( $this->getRawVal( $name, $default ) );
 	}
 
 	/**
@@ -503,7 +533,7 @@ class WebRequest {
 	 * @return int|null
 	 */
 	public function getIntOrNull( $name ) {
-		$val = $this->getVal( $name );
+		$val = $this->getRawVal( $name );
 		return is_numeric( $val )
 			? intval( $val )
 			: null;
@@ -520,7 +550,7 @@ class WebRequest {
 	 * @return float
 	 */
 	public function getFloat( $name, $default = 0.0 ) {
-		return floatval( $this->getVal( $name, $default ) );
+		return floatval( $this->getRawVal( $name, $default ) );
 	}
 
 	/**
@@ -533,7 +563,7 @@ class WebRequest {
 	 * @return bool
 	 */
 	public function getBool( $name, $default = false ) {
-		return (bool)$this->getVal( $name, $default );
+		return (bool)$this->getRawVal( $name, $default );
 	}
 
 	/**
@@ -546,7 +576,8 @@ class WebRequest {
 	 * @return bool
 	 */
 	public function getFuzzyBool( $name, $default = false ) {
-		return $this->getBool( $name, $default ) && strcasecmp( $this->getVal( $name ), 'false' ) !== 0;
+		return $this->getBool( $name, $default )
+			&& strcasecmp( $this->getRawVal( $name ), 'false' ) !== 0;
 	}
 
 	/**
@@ -560,26 +591,22 @@ class WebRequest {
 	public function getCheck( $name ) {
 		# Checkboxes and buttons are only present when clicked
 		# Presence connotes truth, absence false
-		return $this->getVal( $name, null ) !== null;
+		return $this->getRawVal( $name, null ) !== null;
 	}
 
 	/**
 	 * Fetch a text string from the given array or return $default if it's not
-	 * set. Carriage returns are stripped from the text, and with some language
-	 * modules there is an input transliteration applied. This should generally
-	 * be used for form "<textarea>" and "<input>" fields. Used for
-	 * user-supplied freeform text input (for which input transformations may
-	 * be required - e.g.  Esperanto x-coding).
+	 * set. Carriage returns are stripped from the text. This should generally
+	 * be used for form "<textarea>" and "<input>" fields, and for
+	 * user-supplied freeform text input.
 	 *
 	 * @param string $name
 	 * @param string $default Optional
 	 * @return string
 	 */
 	public function getText( $name, $default = '' ) {
-		global $wgContLang;
 		$val = $this->getVal( $name, $default );
-		return str_replace( "\r\n", "\n",
-			$wgContLang->recodeInput( $val ) );
+		return str_replace( "\r\n", "\n", $val );
 	}
 
 	/**
@@ -619,6 +646,7 @@ class WebRequest {
 	 * Get the values passed in the query string.
 	 * No transformation is performed on the values.
 	 *
+	 * @codeCoverageIgnore
 	 * @return array
 	 */
 	public function getQueryValues() {
@@ -629,6 +657,7 @@ class WebRequest {
 	 * Return the contents of the Query with no decoding. Use when you need to
 	 * know exactly what was sent, e.g. for an OAuth signature over the elements.
 	 *
+	 * @codeCoverageIgnore
 	 * @return string
 	 */
 	public function getRawQueryString() {
@@ -687,6 +716,9 @@ class WebRequest {
 
 	/**
 	 * Return the session for this request
+	 *
+	 * This might unpersist an existing session if it was invalid.
+	 *
 	 * @since 1.27
 	 * @note For performance, keep the session locally if you will be making
 	 *  much use of it instead of calling this method repeatedly.
@@ -1191,7 +1223,8 @@ HTML;
 		# Append XFF
 		$forwardedFor = $this->getHeader( 'X-Forwarded-For' );
 		if ( $forwardedFor !== false ) {
-			$isConfigured = IP::isConfiguredProxy( $ip );
+			$proxyLookup = MediaWikiServices::getInstance()->getProxyLookup();
+			$isConfigured = $proxyLookup->isConfiguredProxy( $ip );
 			$ipchain = array_map( 'trim', explode( ',', $forwardedFor ) );
 			$ipchain = array_reverse( $ipchain );
 			array_unshift( $ipchain, $ip );
@@ -1204,14 +1237,14 @@ HTML;
 			foreach ( $ipchain as $i => $curIP ) {
 				$curIP = IP::sanitizeIP( IP::canonicalize( $curIP ) );
 				if ( !$curIP || !isset( $ipchain[$i + 1] ) || $ipchain[$i + 1] === 'unknown'
-					|| !IP::isTrustedProxy( $curIP )
+					|| !$proxyLookup->isTrustedProxy( $curIP )
 				) {
 					break; // IP is not valid/trusted or does not point to anything
 				}
 				if (
 					IP::isPublic( $ipchain[$i + 1] ) ||
 					$wgUsePrivateIPs ||
-					IP::isConfiguredProxy( $curIP ) // bug 48919; treat IP as sane
+					$proxyLookup->isConfiguredProxy( $curIP ) // bug 48919; treat IP as sane
 				) {
 					// Follow the next IP according to the proxy
 					$nextIP = IP::canonicalize( $ipchain[$i + 1] );
@@ -1250,6 +1283,26 @@ HTML;
 	}
 
 	/**
+	 * Check if this request uses a "safe" HTTP method
+	 *
+	 * Safe methods are verbs (e.g. GET/HEAD/OPTIONS) used for obtaining content. Such requests
+	 * are not expected to mutate content, especially in ways attributable to the client. Verbs
+	 * like POST and PUT are typical of non-safe requests which often change content.
+	 *
+	 * @return bool
+	 * @see https://tools.ietf.org/html/rfc7231#section-4.2.1
+	 * @see https://www.w3.org/Protocols/rfc2616/rfc2616-sec9.html
+	 * @since 1.28
+	 */
+	public function hasSafeMethod() {
+		if ( !isset( $_SERVER['REQUEST_METHOD'] ) ) {
+			return false; // CLI mode
+		}
+
+		return in_array( $_SERVER['REQUEST_METHOD'], [ 'GET', 'HEAD', 'OPTIONS', 'TRACE' ] );
+	}
+
+	/**
 	 * Whether this request should be identified as being "safe"
 	 *
 	 * This means that the client is not requesting any state changes and that database writes
@@ -1268,21 +1321,15 @@ HTML;
 	 * @since 1.28
 	 */
 	public function isSafeRequest() {
-		if ( !isset( $_SERVER['REQUEST_METHOD'] ) ) {
-			return false; // CLI mode
+		if ( $this->markedAsSafe && $this->wasPosted() ) {
+			return true; // marked as a "safe" POST
 		}
 
-		if ( $_SERVER['REQUEST_METHOD'] === 'POST' ) {
-			return $this->markedAsSafe;
-		} elseif ( in_array( $_SERVER['REQUEST_METHOD'], [ 'GET', 'HEAD', 'OPTIONS' ] ) ) {
-			return true; // HTTP "safe methods"
-		}
-
-		return false; // PUT/DELETE
+		return $this->hasSafeMethod();
 	}
 
 	/**
-	 * Mark this request is identified as being nullipotent even if it is a POST request
+	 * Mark this request as identified as being nullipotent even if it is a POST request
 	 *
 	 * POST requests are often used due to the need for a client payload, even if the request
 	 * is otherwise equivalent to a "safe method" request.

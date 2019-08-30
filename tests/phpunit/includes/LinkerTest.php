@@ -1,5 +1,7 @@
 <?php
 
+use MediaWiki\MediaWikiServices;
+
 /**
  * @group Database
  */
@@ -34,35 +36,35 @@ class LinkerTest extends MediaWikiLangTestCase {
 			# ## ANONYMOUS USER ########################################
 			[
 				'<a href="/wiki/Special:Contributions/JohnDoe" '
-					. 'title="Special:Contributions/JohnDoe" '
-					. 'class="mw-userlink mw-anonuserlink">JohnDoe</a>',
+					. 'class="mw-userlink mw-anonuserlink" '
+					. 'title="Special:Contributions/JohnDoe"><bdi>JohnDoe</bdi></a>',
 				0, 'JohnDoe', false,
 			],
 			[
 				'<a href="/wiki/Special:Contributions/::1" '
-					. 'title="Special:Contributions/::1" '
-					. 'class="mw-userlink mw-anonuserlink">::1</a>',
+					. 'class="mw-userlink mw-anonuserlink" '
+					. 'title="Special:Contributions/::1"><bdi>::1</bdi></a>',
 				0, '::1', false,
 				'Anonymous with pretty IPv6'
 			],
 			[
 				'<a href="/wiki/Special:Contributions/0:0:0:0:0:0:0:1" '
-					. 'title="Special:Contributions/0:0:0:0:0:0:0:1" '
-					. 'class="mw-userlink mw-anonuserlink">::1</a>',
+					. 'class="mw-userlink mw-anonuserlink" '
+					. 'title="Special:Contributions/0:0:0:0:0:0:0:1"><bdi>::1</bdi></a>',
 				0, '0:0:0:0:0:0:0:1', false,
 				'Anonymous with almost pretty IPv6'
 			],
 			[
 				'<a href="/wiki/Special:Contributions/0000:0000:0000:0000:0000:0000:0000:0001" '
-					. 'title="Special:Contributions/0000:0000:0000:0000:0000:0000:0000:0001" '
-					. 'class="mw-userlink mw-anonuserlink">::1</a>',
+					. 'class="mw-userlink mw-anonuserlink" '
+					. 'title="Special:Contributions/0000:0000:0000:0000:0000:0000:0000:0001"><bdi>::1</bdi></a>',
 				0, '0000:0000:0000:0000:0000:0000:0000:0001', false,
 				'Anonymous with full IPv6'
 			],
 			[
 				'<a href="/wiki/Special:Contributions/::1" '
-					. 'title="Special:Contributions/::1" '
-					. 'class="mw-userlink mw-anonuserlink">AlternativeUsername</a>',
+					. 'class="mw-userlink mw-anonuserlink" '
+					. 'title="Special:Contributions/::1"><bdi>AlternativeUsername</bdi></a>',
 				0, '::1', 'AlternativeUsername',
 				'Anonymous with pretty IPv6 and an alternative username'
 			],
@@ -70,15 +72,15 @@ class LinkerTest extends MediaWikiLangTestCase {
 			# IPV4
 			[
 				'<a href="/wiki/Special:Contributions/127.0.0.1" '
-					. 'title="Special:Contributions/127.0.0.1" '
-					. 'class="mw-userlink mw-anonuserlink">127.0.0.1</a>',
+					. 'class="mw-userlink mw-anonuserlink" '
+					. 'title="Special:Contributions/127.0.0.1"><bdi>127.0.0.1</bdi></a>',
 				0, '127.0.0.1', false,
 				'Anonymous with IPv4'
 			],
 			[
 				'<a href="/wiki/Special:Contributions/127.0.0.1" '
-					. 'title="Special:Contributions/127.0.0.1" '
-					. 'class="mw-userlink mw-anonuserlink">AlternativeUsername</a>',
+					. 'class="mw-userlink mw-anonuserlink" '
+					. 'title="Special:Contributions/127.0.0.1"><bdi>AlternativeUsername</bdi></a>',
 				0, '127.0.0.1', 'AlternativeUsername',
 				'Anonymous with IPv4 and an alternative username'
 			],
@@ -361,6 +363,7 @@ class LinkerTest extends MediaWikiLangTestCase {
 	}
 
 	/**
+	 * @covers MediaWiki\Linker\LinkRenderer::runLegacyBeginHook
 	 * @dataProvider provideLinkBeginHook
 	 */
 	public function testLinkBeginHook( $callback, $expected ) {
@@ -407,6 +410,7 @@ class LinkerTest extends MediaWikiLangTestCase {
 	}
 
 	/**
+	 * @covers MediaWiki\Linker\LinkRenderer::buildAElement
 	 * @dataProvider provideLinkEndHook
 	 */
 	public function testLinkEndHook( $callback, $expected ) {
@@ -419,5 +423,55 @@ class LinkerTest extends MediaWikiLangTestCase {
 		$title = SpecialPage::getTitleFor( 'Blankpage' );
 		$out = Linker::link( $title );
 		$this->assertEquals( $expected, $out );
+	}
+
+	/**
+	 * @covers Linker::getLinkColour
+	 */
+	public function testGetLinkColour() {
+		$this->hideDeprecated( 'Linker::getLinkColour' );
+		$linkCache = MediaWikiServices::getInstance()->getLinkCache();
+		$foobarTitle = Title::makeTitle( NS_MAIN, 'FooBar' );
+		$redirectTitle = Title::makeTitle( NS_MAIN, 'Redirect' );
+		$userTitle = Title::makeTitle( NS_USER, 'Someuser' );
+		$linkCache->addGoodLinkObj(
+			1, // id
+			$foobarTitle,
+			10, // len
+			0 // redir
+		);
+		$linkCache->addGoodLinkObj(
+			2, // id
+			$redirectTitle,
+			10, // len
+			1 // redir
+		);
+
+		$linkCache->addGoodLinkObj(
+			3, // id
+			$userTitle,
+			10, // len
+			0 // redir
+		);
+
+		$this->assertEquals(
+			'',
+			Linker::getLinkColour( $foobarTitle, 0 )
+		);
+
+		$this->assertEquals(
+			'stub',
+			Linker::getLinkColour( $foobarTitle, 20 )
+		);
+
+		$this->assertEquals(
+			'mw-redirect',
+			Linker::getLinkColour( $redirectTitle, 0 )
+		);
+
+		$this->assertEquals(
+			'',
+			Linker::getLinkColour( $userTitle, 20 )
+		);
 	}
 }

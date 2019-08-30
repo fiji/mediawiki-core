@@ -6,15 +6,6 @@ namespace MediaWiki\Auth;
  * @group AuthManager
  */
 abstract class AuthenticationRequestTestCase extends \MediaWikiTestCase {
-	protected function setUp() {
-		global $wgDisableAuthManager;
-
-		parent::setUp();
-		if ( $wgDisableAuthManager ) {
-			$this->markTestSkipped( '$wgDisableAuthManager is set' );
-		}
-	}
-
 	abstract protected function getInstance( array $args = [] );
 
 	/**
@@ -40,6 +31,13 @@ abstract class AuthenticationRequestTestCase extends \MediaWikiTestCase {
 			}
 			if ( isset( $data['image'] ) ) {
 				$this->assertType( 'string', $data['image'], "Field $field, image" );
+			}
+			if ( isset( $data['sensitive'] ) ) {
+				$this->assertType( 'bool', $data['sensitive'], "Field $field, sensitive" );
+			}
+			if ( $data['type'] === 'password' ) {
+				$this->assertTrue( !empty( $data['sensitive'] ),
+					"Field $field, password field must be sensitive" );
 			}
 
 			switch ( $data['type'] ) {

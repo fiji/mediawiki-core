@@ -244,11 +244,11 @@ class FindHooks extends Maintenance {
 				// Comma for second argument
 				'(?:\s*(,))?' .
 				// Second argument must start with array to be processed
-				'(?:\s*array\s*\(' .
+				'(?:\s*(?:array\s*\(|\[)' .
 				// Matching inside array - allows one deep of brackets
-				'((?:[^\(\)]|\([^\(\)]*\))*)' .
+				'((?:[^\(\)\[\]]|\((?-1)\)|\[(?-1)\])*)' .
 				// End
-				'\))?/',
+				'[\)\]])?/',
 			$content,
 			$m,
 			PREG_SET_ORDER
@@ -305,17 +305,16 @@ class FindHooks extends Maintenance {
 
 		if ( $recurse === self::FIND_RECURSIVE ) {
 			$iterator = new RecursiveIteratorIterator(
-				new RecursiveDirectoryIterator( $dir ),
-				RecursiveIteratorIterator::SELF_FIRST | RecursiveDirectoryIterator::SKIP_DOTS
+				new RecursiveDirectoryIterator( $dir, RecursiveDirectoryIterator::SKIP_DOTS ),
+				RecursiveIteratorIterator::SELF_FIRST
 			);
 		} else {
 			$iterator = new DirectoryIterator( $dir );
 		}
 
 		foreach ( $iterator as $info ) {
-			// Ignore directories, ignore json (installer and api i18n),
-			// ignore extension-less files like HISTORY
-			if ( $info->isFile() && $info->getExtension() !== 'json' && $info->getExtension()
+			// Ignore directories, work only on php files,
+			if ( $info->isFile() && in_array( $info->getExtension(), [ 'php', 'inc' ] )
 				// Skip this file as it contains text that looks like a bad wfRunHooks() call
 				&& $info->getRealPath() !== __FILE__
 			) {
@@ -328,15 +327,12 @@ class FindHooks extends Maintenance {
 	}
 
 	/**
-	 * Nicely output the array
+	 * Nicely sort an print an array
 	 * @param string $msg A message to show before the value
 	 * @param array $arr
-	 * @param bool $sort Whether to sort the array (Default: true)
 	 */
-	private function printArray( $msg, $arr, $sort = true ) {
-		if ( $sort ) {
-			asort( $arr );
-		}
+	private function printArray( $msg, $arr ) {
+		asort( $arr );
 
 		foreach ( $arr as $v ) {
 			$this->output( "$msg: $v\n" );

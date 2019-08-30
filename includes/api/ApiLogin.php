@@ -42,9 +42,7 @@ class ApiLogin extends ApiBase {
 	}
 
 	protected function getDescriptionMessage() {
-		if ( $this->getConfig()->get( 'DisableAuthManager' ) ) {
-			return 'apihelp-login-description-nonauthmanager';
-		} elseif ( $this->getConfig()->get( 'EnableBotPasswords' ) ) {
+		if ( $this->getConfig()->get( 'EnableBotPasswords' ) ) {
 			return 'apihelp-login-description';
 		} else {
 			return 'apihelp-login-description-nobotpasswords';
@@ -70,6 +68,14 @@ class ApiLogin extends ApiBase {
 			] );
 
 			return;
+		}
+
+		try {
+			$this->requirePostedParameters( [ 'password', 'token' ] );
+		} catch ( UsageException $ex ) {
+			// Make this a warning for now, upgrade to an error in 1.29.
+			$this->setWarning( $ex->getMessage() );
+			$this->logFeatureUsage( 'login-params-in-query-string' );
 		}
 
 		$params = $this->extractRequestParams();
@@ -104,123 +110,86 @@ class ApiLogin extends ApiBase {
 		}
 
 		// Try bot passwords
-		if ( $authRes === false && $this->getConfig()->get( 'EnableBotPasswords' ) &&
-			strpos( $params['name'], BotPassword::getSeparator() ) !== false
+		if (
+			$authRes === false && $this->getConfig()->get( 'EnableBotPasswords' ) &&
+			( $botLoginData = BotPassword::canonicalizeLoginData( $params['name'], $params['password'] ) )
 		) {
 			$status = BotPassword::login(
-				$params['name'], $params['password'], $this->getRequest()
+				$botLoginData[0], $botLoginData[1], $this->getRequest()
 			);
 			if ( $status->isOK() ) {
 				$session = $status->getValue();
 				$authRes = 'Success';
 				$loginType = 'BotPassword';
-			} else {
+			} elseif ( !$botLoginData[2] ) {
 				$authRes = 'Failed';
 				$message = $status->getMessage();
-				LoggerFactory::getInstance( 'authmanager' )->info(
+				LoggerFactory::getInstance( 'authentication' )->info(
 					'BotPassword login failed: ' . $status->getWikiText( false, false, 'en' )
 				);
 			}
 		}
 
 		if ( $authRes === false ) {
-			if ( $this->getConfig()->get( 'DisableAuthManager' ) ) {
-				// Non-AuthManager login
-				$context->setRequest( new DerivativeRequest(
-					$this->getContext()->getRequest(),
-					[
-						'wpName' => $params['name'],
-						'wpPassword' => $params['password'],
-						'wpDomain' => $params['domain'],
-						'wpLoginToken' => $params['token'],
-						'wpRemember' => ''
-					]
-				) );
-				$loginForm = new LoginForm();
-				$loginForm->setContext( $context );
-				$authRes = $loginForm->authenticateUserData();
-				$loginType = 'LoginForm';
+			// Simplified AuthManager login, for backwards compatibility
+			$manager = AuthManager::singleton();
+			$reqs = AuthenticationRequest::loadRequestsFromSubmission(
+				$manager->getAuthenticationRequests( AuthManager::ACTION_LOGIN, $this->getUser() ),
+				[
+					'username' => $params['name'],
+					'password' => $params['password'],
+					'domain' => $params['domain'],
+					'rememberMe' => true,
+				]
+			);
+			$res = AuthManager::singleton()->beginAuthentication( $reqs, 'null:' );
+			switch ( $res->status ) {
+				case AuthenticationResponse::PASS:
+					if ( $this->getConfig()->get( 'EnableBotPasswords' ) ) {
+						$warn = 'Main-account login via action=login is deprecated and may stop working ' .
+							'without warning.';
+						$warn .= ' To continue login with action=login, see [[Special:BotPasswords]].';
+						$warn .= ' To safely continue using main-account login, see action=clientlogin.';
+					} else {
+						$warn = 'Login via action=login is deprecated and may stop working without warning.';
+						$warn .= ' To safely log in, see action=clientlogin.';
+					}
+					$this->setWarning( $warn );
+					$authRes = 'Success';
+					$loginType = 'AuthManager';
+					break;
 
-				switch ( $authRes ) {
-					case LoginForm::SUCCESS:
-						$authRes = 'Success';
-						break;
-					case LoginForm::NEED_TOKEN:
-						$authRes = 'NeedToken';
-						break;
-				}
-			} else {
-				// Simplified AuthManager login, for backwards compatibility
-				$manager = AuthManager::singleton();
-				$reqs = AuthenticationRequest::loadRequestsFromSubmission(
-					$manager->getAuthenticationRequests( AuthManager::ACTION_LOGIN, $this->getUser() ),
-					[
-						'username' => $params['name'],
-						'password' => $params['password'],
-						'domain' => $params['domain'],
-						'rememberMe' => true,
-					]
-				);
-				$res = AuthManager::singleton()->beginAuthentication( $reqs, 'null:' );
-				switch ( $res->status ) {
-					case AuthenticationResponse::PASS:
-						if ( $this->getConfig()->get( 'EnableBotPasswords' ) ) {
-							$warn = 'Main-account login via action=login is deprecated and may stop working ' .
-								'without warning.';
-							$warn .= ' To continue login with action=login, see [[Special:BotPasswords]].';
-							$warn .= ' To safely continue using main-account login, see action=clientlogin.';
-						} else {
-							$warn = 'Login via action=login is deprecated and may stop working without warning.';
-							$warn .= ' To safely log in, see action=clientlogin.';
-						}
-						$this->setWarning( $warn );
-						$authRes = 'Success';
-						$loginType = 'AuthManager';
-						break;
+				case AuthenticationResponse::FAIL:
+					// Hope it's not a PreAuthenticationProvider that failed...
+					$authRes = 'Failed';
+					$message = $res->message;
+					\MediaWiki\Logger\LoggerFactory::getInstance( 'authentication' )
+						->info( __METHOD__ . ': Authentication failed: '
+						. $message->inLanguage( 'en' )->plain() );
+					break;
 
-					case AuthenticationResponse::FAIL:
-						// Hope it's not a PreAuthenticationProvider that failed...
-						$authRes = 'Failed';
-						$message = $res->message;
-						\MediaWiki\Logger\LoggerFactory::getInstance( 'authentication' )
-							->info( __METHOD__ . ': Authentication failed: ' . $message->plain() );
-						break;
-
-					default:
-						$authRes = 'Aborted';
-						break;
-				}
+				default:
+					\MediaWiki\Logger\LoggerFactory::getInstance( 'authentication' )
+						->info( __METHOD__ . ': Authentication failed due to unsupported response type: '
+						. $res->status, $this->getAuthenticationResponseLogData( $res ) );
+					$authRes = 'Aborted';
+					break;
 			}
 		}
 
 		$result['result'] = $authRes;
 		switch ( $authRes ) {
 			case 'Success':
-				if ( $this->getConfig()->get( 'DisableAuthManager' ) ) {
-					$user = $context->getUser();
-					$this->getContext()->setUser( $user );
-					$user->setCookies( $this->getRequest(), null, true );
-				} else {
-					$user = $session->getUser();
-				}
+				$user = $session->getUser();
 
 				ApiQueryInfo::resetTokenCache();
 
 				// Deprecated hook
 				$injected_html = '';
-				Hooks::run( 'UserLoginComplete', [ &$user, &$injected_html ] );
+				Hooks::run( 'UserLoginComplete', [ &$user, &$injected_html, true ] );
 
 				$result['lguserid'] = intval( $user->getId() );
 				$result['lgusername'] = $user->getName();
-
-				// @todo: These are deprecated, and should be removed at some
-				// point (1.28 at the earliest, and see T121527). They were ok
-				// when the core cookie-based login was the only thing, but
-				// CentralAuth broke that a while back and
-				// SessionManager/AuthManager *really* break it.
-				$result['lgtoken'] = $user->getToken();
-				$result['cookieprefix'] = $this->getConfig()->get( 'CookiePrefix' );
-				$result['sessionid'] = $session->getId();
 				break;
 
 			case 'NeedToken':
@@ -228,10 +197,6 @@ class ApiLogin extends ApiBase {
 				$this->setWarning( 'Fetching a token via action=login is deprecated. ' .
 				   'Use action=query&meta=tokens&type=login instead.' );
 				$this->logFeatureUsage( 'action=login&!lgtoken' );
-
-				// @todo: See above about deprecation
-				$result['cookieprefix'] = $this->getConfig()->get( 'CookiePrefix' );
-				$result['sessionid'] = $session->getId();
 				break;
 
 			case 'WrongToken':
@@ -252,65 +217,6 @@ class ApiLogin extends ApiBase {
 				}
 				break;
 
-			// Results from LoginForm for when $wgDisableAuthManager is true
-			case LoginForm::WRONG_TOKEN:
-				$result['result'] = 'WrongToken';
-				break;
-
-			case LoginForm::NO_NAME:
-				$result['result'] = 'NoName';
-				break;
-
-			case LoginForm::ILLEGAL:
-				$result['result'] = 'Illegal';
-				break;
-
-			case LoginForm::WRONG_PLUGIN_PASS:
-				$result['result'] = 'WrongPluginPass';
-				break;
-
-			case LoginForm::NOT_EXISTS:
-				$result['result'] = 'NotExists';
-				break;
-
-			// bug 20223 - Treat a temporary password as wrong. Per SpecialUserLogin:
-			// The e-mailed temporary password should not be used for actual logins.
-			case LoginForm::RESET_PASS:
-			case LoginForm::WRONG_PASS:
-				$result['result'] = 'WrongPass';
-				break;
-
-			case LoginForm::EMPTY_PASS:
-				$result['result'] = 'EmptyPass';
-				break;
-
-			case LoginForm::CREATE_BLOCKED:
-				$result['result'] = 'CreateBlocked';
-				$result['details'] = 'Your IP address is blocked from account creation';
-				$block = $context->getUser()->getBlock();
-				if ( $block ) {
-					$result = array_merge( $result, ApiQueryUserInfo::getBlockInfo( $block ) );
-				}
-				break;
-
-			case LoginForm::THROTTLED:
-				$result['result'] = 'Throttled';
-				$result['wait'] = intval( $loginForm->mThrottleWait );
-				break;
-
-			case LoginForm::USER_BLOCKED:
-				$result['result'] = 'Blocked';
-				$block = User::newFromName( $params['name'] )->getBlock();
-				if ( $block ) {
-					$result = array_merge( $result, ApiQueryUserInfo::getBlockInfo( $block ) );
-				}
-				break;
-
-			case LoginForm::ABORTED:
-				$result['result'] = 'Aborted';
-				$result['reason'] = $loginForm->mAbortLoginErrorMsg;
-				break;
-
 			default:
 				ApiBase::dieDebug( __METHOD__, "Unhandled case value: {$authRes}" );
 		}
@@ -320,7 +226,7 @@ class ApiLogin extends ApiBase {
 		if ( $loginType === 'LoginForm' && isset( LoginForm::$statusCodes[$authRes] ) ) {
 			$authRes = LoginForm::$statusCodes[$authRes];
 		}
-		LoggerFactory::getInstance( 'authmanager' )->info( 'Login attempt', [
+		LoggerFactory::getInstance( 'authevents' )->info( 'Login attempt', [
 			'event' => 'login',
 			'successful' => $authRes === 'Success',
 			'loginType' => $loginType,
@@ -329,8 +235,7 @@ class ApiLogin extends ApiBase {
 	}
 
 	public function isDeprecated() {
-		return !$this->getConfig()->get( 'DisableAuthManager' ) &&
-			!$this->getConfig()->get( 'EnableBotPasswords' );
+		return !$this->getConfig()->get( 'EnableBotPasswords' );
 	}
 
 	public function mustBePosted() {
@@ -367,5 +272,33 @@ class ApiLogin extends ApiBase {
 
 	public function getHelpUrls() {
 		return 'https://www.mediawiki.org/wiki/API:Login';
+	}
+
+	/**
+	 * Turns an AuthenticationResponse into a hash suitable for passing to Logger
+	 * @param AuthenticationResponse $response
+	 * @return array
+	 */
+	protected function getAuthenticationResponseLogData( AuthenticationResponse $response ) {
+		$ret = [
+			'status' => $response->status,
+		];
+		if ( $response->message ) {
+			$ret['message'] = $response->message->inLanguage( 'en' )->plain();
+		};
+		$reqs = [
+			'neededRequests' => $response->neededRequests,
+			'createRequest' => $response->createRequest,
+			'linkRequest' => $response->linkRequest,
+		];
+		foreach ( $reqs as $k => $v ) {
+			if ( $v ) {
+				$v = is_array( $v ) ? $v : [ $v ];
+				$reqClasses = array_unique( array_map( 'get_class', $v ) );
+				sort( $reqClasses );
+				$ret[$k] = implode( ', ', $reqClasses );
+			}
+		}
+		return $ret;
 	}
 }

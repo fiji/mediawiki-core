@@ -6,25 +6,19 @@
  */
 class TestUser {
 	/**
-	 * @deprecated Since 1.25. Use TestUser::getUser()->getName()
-	 * @private
 	 * @var string
 	 */
-	public $username;
+	private $username;
 
 	/**
-	 * @deprecated Since 1.25. Use TestUser::getPassword()
-	 * @private
 	 * @var string
 	 */
-	public $password;
+	private $password;
 
 	/**
-	 * @deprecated Since 1.25. Use TestUser::getUser()
-	 * @private
 	 * @var User
 	 */
-	public $user;
+	private $user;
 
 	private function assertNotReal() {
 		global $wgDBprefix;
@@ -78,6 +72,12 @@ class TestUser {
 			$this->user->removeGroup( $group );
 		}
 		if ( $change ) {
+			// Disable CAS check before saving. The User object may have been initialized from cached
+			// information that may be out of whack with the database during testing. If tests were
+			// perfectly isolated, this would not happen. But if it does happen, let's just ignore the
+			// inconsistency, and just write the data we want - during testing, we are not worried
+			// about data loss.
+			$this->user->mTouched = '';
 			$this->user->saveSettings();
 		}
 	}

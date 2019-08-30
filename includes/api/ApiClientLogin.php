@@ -21,8 +21,8 @@
  */
 
 use MediaWiki\Auth\AuthManager;
-use MediaWiki\Auth\AuthenticationRequest;
 use MediaWiki\Auth\AuthenticationResponse;
+use MediaWiki\Auth\CreateFromLoginAuthenticationRequest;
 
 /**
  * Log in to the wiki with AuthManager
@@ -72,6 +72,7 @@ class ApiClientLogin extends ApiBase {
 			$this->getResult()->addValue( null, 'clientlogin', $helper->formatAuthenticationResponse(
 				AuthenticationResponse::newFail( $this->msg( 'userlogin-cannot-' . AuthManager::ACTION_LOGIN ) )
 			) );
+			$helper->logAuthenticationResult( 'login', 'userlogin-cannot-' . AuthManager::ACTION_LOGIN );
 			return;
 		}
 
@@ -90,8 +91,16 @@ class ApiClientLogin extends ApiBase {
 			$res = $manager->beginAuthentication( $reqs, $params['returnurl'] );
 		}
 
+		// Remove CreateFromLoginAuthenticationRequest from $res->neededRequests.
+		// It's there so a RESTART treated as UI will work right, but showing
+		// it to the API client is just confusing.
+		$res->neededRequests = ApiAuthManagerHelper::blacklistAuthenticationRequests(
+			$res->neededRequests, [ CreateFromLoginAuthenticationRequest::class ]
+		);
+
 		$this->getResult()->addValue( null, 'clientlogin',
 			$helper->formatAuthenticationResponse( $res ) );
+		$helper->logAuthenticationResult( 'login', $res );
 	}
 
 	public function isReadMode() {

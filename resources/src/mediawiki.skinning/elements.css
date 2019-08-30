@@ -13,6 +13,10 @@ a {
 	background: none;
 }
 
+a:not( [href] ) {
+	cursor: pointer; /* Always cursor:pointer even without href */
+}
+
 a:visited {
 	color: #0b0080;
 }

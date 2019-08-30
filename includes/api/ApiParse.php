@@ -36,6 +36,12 @@ class ApiParse extends ApiBase {
 	/** @var Content $pstContent */
 	private $pstContent = null;
 
+	private function checkReadPermissions( Title $title ) {
+		if ( !$title->userCan( 'read', $this->getUser() ) ) {
+			$this->dieUsage( "You don't have permission to view this page", 'permissiondenied' );
+		}
+	}
+
 	public function execute() {
 		// The data is hot but user-dependent, like page views, so we set vary cookies
 		$this->getMain()->setCacheMode( 'anon-public-user-private' );
@@ -102,6 +108,8 @@ class ApiParse extends ApiBase {
 				if ( !$rev ) {
 					$this->dieUsage( "There is no revision ID $oldid", 'missingrev' );
 				}
+
+				$this->checkReadPermissions( $rev->getTitle() );
 				if ( !$rev->userCan( Revision::DELETED_TEXT, $this->getUser() ) ) {
 					$this->dieUsage( "You don't have permission to view deleted revisions", 'permissiondenied' );
 				}
@@ -109,13 +117,13 @@ class ApiParse extends ApiBase {
 				$titleObj = $rev->getTitle();
 				$wgTitle = $titleObj;
 				$pageObj = WikiPage::factory( $titleObj );
-				$popts = $this->makeParserOptions( $pageObj, $params );
+				list( $popts, $reset, $suppressCache ) = $this->makeParserOptions( $pageObj, $params );
 
 				// If for some reason the "oldid" is actually the current revision, it may be cached
 				// Deliberately comparing $pageObj->getLatest() with $rev->getId(), rather than
 				// checking $rev->isCurrent(), because $pageObj is what actually ends up being used,
 				// and if its ->getLatest() is outdated, $rev->isCurrent() won't tell us that.
-				if ( $rev->getId() == $pageObj->getLatest() ) {
+				if ( !$suppressCache && $rev->getId() == $pageObj->getLatest() ) {
 					// May get from/save to parser cache
 					$p_result = $this->getParsedContent( $pageObj, $popts,
 						$pageid, isset( $prop['wikitext'] ) );
@@ -161,18 +169,20 @@ class ApiParse extends ApiBase {
 				if ( !$titleObj || !$titleObj->exists() ) {
 					$this->dieUsage( "The page you specified doesn't exist", 'missingtitle' );
 				}
+
+				$this->checkReadPermissions( $titleObj );
 				$wgTitle = $titleObj;
 
 				if ( isset( $prop['revid'] ) ) {
 					$oldid = $pageObj->getLatest();
 				}
 
-				$popts = $this->makeParserOptions( $pageObj, $params );
+				list( $popts, $reset, $suppressCache ) = $this->makeParserOptions( $pageObj, $params );
 
 				// Don't pollute the parser cache when setting options that aren't
 				// in ParserOptions::optionsHash()
 				/// @todo: This should be handled closer to the actual cache instead of here, see T110269
-				$suppressCache =
+				$suppressCache = $suppressCache ||
 					$params['disablepp'] ||
 					$params['disablelimitreport'] ||
 					$params['preview'] ||
@@ -202,7 +212,7 @@ class ApiParse extends ApiBase {
 				$pageObj = $article->getPage();
 			}
 
-			$popts = $this->makeParserOptions( $pageObj, $params );
+			list( $popts, $reset ) = $this->makeParserOptions( $pageObj, $params );
 			$textProvided = !is_null( $text );
 
 			if ( !$textProvided ) {
@@ -345,34 +355,32 @@ class ApiParse extends ApiBase {
 				$titleObj->getPrefixedText();
 		}
 
-		if ( isset( $prop['headitems'] ) || isset( $prop['headhtml'] ) ) {
-			$context = $this->getContext();
+		if ( isset( $prop['headitems'] ) ) {
+			$result_array['headitems'] = $this->formatHeadItems( $p_result->getHeadItems() );
+			$this->logFeatureUsage( 'action=parse&prop=headitems' );
+			$this->setWarning( 'headitems is deprecated since MediaWiki 1.28. '
+				. 'Use prop=headhtml when creating new HTML documents, or '
+				. 'prop=modules|jsconfigvars when updating a document client-side.' );
+		}
+
+		if ( isset( $prop['headhtml'] ) ) {
+			$context = new DerivativeContext( $this->getContext() );
 			$context->setTitle( $titleObj );
-			$context->getOutput()->addParserOutputMetadata( $p_result );
+			$context->setWikiPage( $pageObj );
 
-			if ( isset( $prop['headitems'] ) ) {
-				$headItems = $this->formatHeadItems( $p_result->getHeadItems() );
+			// We need an OutputPage tied to $context, not to the
+			// RequestContext at the root of the stack.
+			$output = new OutputPage( $context );
+			$output->addParserOutputMetadata( $p_result );
 
-				$css = $this->formatCss( $context->getOutput()->buildCssLinksArray() );
-
-				$scripts = [ $context->getOutput()->getHeadScripts() ];
-
-				$result_array['headitems'] = array_merge( $headItems, $css, $scripts );
-			}
-
-			if ( isset( $prop['headhtml'] ) ) {
-				$result_array['headhtml'] = $context->getOutput()->headElement( $context->getSkin() );
-				$result_array[ApiResult::META_BC_SUBELEMENTS][] = 'headhtml';
-			}
+			$result_array['headhtml'] = $output->headElement( $context->getSkin() );
+			$result_array[ApiResult::META_BC_SUBELEMENTS][] = 'headhtml';
 		}
 
 		if ( isset( $prop['modules'] ) ) {
 			$result_array['modules'] = array_values( array_unique( $p_result->getModules() ) );
 			$result_array['modulescripts'] = array_values( array_unique( $p_result->getModuleScripts() ) );
 			$result_array['modulestyles'] = array_values( array_unique( $p_result->getModuleStyles() ) );
-			// To be removed in 1.27
-			$result_array['modulemessages'] = [];
-			$this->setWarning( 'modulemessages is deprecated since MediaWiki 1.26' );
 		}
 
 		if ( isset( $prop['jsconfigvars'] ) ) {
@@ -456,7 +464,6 @@ class ApiParse extends ApiBase {
 			'indicators' => 'ind',
 			'modulescripts' => 'm',
 			'modulestyles' => 'm',
-			'modulemessages' => 'm',
 			'properties' => 'pp',
 			'limitreportdata' => 'lr',
 		];
@@ -470,10 +477,9 @@ class ApiParse extends ApiBase {
 	 * @param WikiPage $pageObj
 	 * @param array $params
 	 *
-	 * @return ParserOptions
+	 * @return array [ ParserOptions, ScopedCallback, bool $suppressCache ]
 	 */
 	protected function makeParserOptions( WikiPage $pageObj, array $params ) {
-
 		$popts = $pageObj->makeParserOptions( $this->getContext() );
 		$popts->enableLimitReport( !$params['disablepp'] && !$params['disablelimitreport'] );
 		$popts->setIsPreview( $params['preview'] || $params['sectionpreview'] );
@@ -483,7 +489,12 @@ class ApiParse extends ApiBase {
 			$popts->setTidy( false );
 		}
 
-		return $popts;
+		$reset = null;
+		$suppressCache = false;
+		Hooks::run( 'ApiMakeParserOptions',
+			[ $popts, $pageObj->getTitle(), $params, $this, &$reset, &$suppressCache ] );
+
+		return [ $popts, $reset, $suppressCache ];
 	}
 
 	/**
@@ -630,6 +641,8 @@ class ApiParse extends ApiBase {
 			$hiddencats[$row->page_title] = isset( $row->pp_propname );
 		}
 
+		$linkCache = LinkCache::singleton();
+
 		foreach ( $links as $link => $sortkey ) {
 			$entry = [];
 			$entry['sortkey'] = $sortkey;
@@ -637,6 +650,14 @@ class ApiParse extends ApiBase {
 			ApiResult::setContentValue( $entry, 'category', (string)$link );
 			if ( !isset( $hiddencats[$link] ) ) {
 				$entry['missing'] = true;
+
+				// We already know the link doesn't exist in the database, so
+				// tell LinkCache that before calling $title->isKnown().
+				$title = Title::makeTitle( NS_CATEGORY, $link );
+				$linkCache->addBadLinkObj( $title );
+				if ( $title->isKnown() ) {
+					$entry['known'] = true;
+				}
 			} elseif ( $hiddencats[$link] ) {
 				$entry['hidden'] = true;
 			}
@@ -694,18 +715,6 @@ class ApiParse extends ApiBase {
 			$entry = [];
 			$entry['tag'] = $tag;
 			ApiResult::setContentValue( $entry, 'content', $content );
-			$result[] = $entry;
-		}
-
-		return $result;
-	}
-
-	private function formatCss( $css ) {
-		$result = [];
-		foreach ( $css as $file => $link ) {
-			$entry = [];
-			$entry['file'] = $file;
-			ApiResult::setContentValue( $entry, 'link', $link );
 			$result[] = $entry;
 		}
 

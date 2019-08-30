@@ -1,6 +1,7 @@
 <?php
 /**
  * Internationalisation code.
+ * See https://www.mediawiki.org/wiki/Special:MyLanguage/Localisation for more information.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,13 +25,6 @@
 /**
  * @defgroup Language Language
  */
-
-if ( !defined( 'MEDIAWIKI' ) ) {
-	echo "This file is part of MediaWiki, it is not a valid entry point.\n";
-	exit( 1 );
-}
-
-mb_internal_encoding( 'UTF-8' );
 
 use CLDRPluralRuleParser\Evaluator;
 
@@ -142,6 +136,12 @@ class Language {
 	 * @var array
 	 */
 	static private $fallbackLanguageCache = [];
+
+	/**
+	 * Cache for grammar rules data
+	 * @var MapCacheLRU|null
+	 */
+	static private $grammarTransformations;
 
 	/**
 	 * Cache for language names
@@ -297,7 +297,7 @@ class Language {
 		# Since these are limited, this is safe even later changes to the registry --
 		# the only oddity is that it might change the type of the tag, and thus
 		# the results from the capturing groups.
-		# http://www.iana.org/assignments/language-subtag-registry
+		# https://www.iana.org/assignments/language-subtag-registry
 
 		$grandfathered = "en{$s}GB{$s}oed"
 			. "|i{$s}(?:ami|bnn|default|enochian|hak|klingon|lux|mingo|navajo|pwn|tao|tay|tsu)"
@@ -338,7 +338,7 @@ class Language {
 			// People think language codes are html safe, so enforce it.
 			// Ideally we should only allow a-zA-Z0-9-
 			// but, .+ and other chars are often used for {{int:}} hacks
-			// see bugs 37564, 37587, 36938
+			// see bugs T39564, T39587, T38938
 			$cache[$code] =
 				// Protect against path traversal
 				strcspn( $code, ":/\\\000&<>'\"" ) === strlen( $code )
@@ -1043,6 +1043,8 @@ class Language {
 	 *    xin  n (month number) in Iranian calendar
 	 *    xiy  y (two digit year) in Iranian calendar
 	 *    xiY  Y (full year) in Iranian calendar
+	 *    xit  t (days in month) in Iranian calendar
+	 *    xiz  z (day of the year) in Iranian calendar
 	 *
 	 *    xjj  j (day number) in Hebrew calendar
 	 *    xjF  F (month name) in Hebrew calendar
@@ -1089,7 +1091,7 @@ class Language {
 	 * @throws MWException
 	 * @return string
 	 */
-	public function sprintfDate( $format, $ts, DateTimeZone $zone = null, &$ttl = null ) {
+	public function sprintfDate( $format, $ts, DateTimeZone $zone = null, &$ttl = 'unused' ) {
 		$s = '';
 		$raw = false;
 		$roman = false;
@@ -1338,6 +1340,20 @@ class Language {
 					}
 					$num = substr( $iranian[0], -2 );
 					break;
+				case 'xit':
+					$usedIranianYear = true;
+					if ( !$iranian ) {
+						$iranian = self::tsToIranian( $ts );
+					}
+					$num = self::$IRANIAN_DAYS[$iranian[1] - 1];
+					break;
+				case 'xiz':
+					$usedIranianYear = true;
+					if ( !$iranian ) {
+						$iranian = self::tsToIranian( $ts );
+					}
+					$num = $iranian[3];
+					break;
 				case 'a':
 					$usedAMPM = true;
 					$s .= intval( substr( $ts, 8, 2 ) ) < 12 ? 'am' : 'pm';
@@ -1454,7 +1470,9 @@ class Language {
 			}
 		}
 
-		if ( $usedSecond ) {
+		if ( $ttl === 'unused' ) {
+			// No need to calculate the TTL, the caller wont use it anyway.
+		} elseif ( $usedSecond ) {
 			$ttl = 1;
 		} elseif ( $usedMinute ) {
 			$ttl = 60 - substr( $ts, 12, 2 );
@@ -1594,6 +1612,8 @@ class Language {
 			$jDayNo = floor( ( $jDayNo - 1 ) % 365 );
 		}
 
+		$jz = $jDayNo;
+
 		for ( $i = 0; $i < 11 && $jDayNo >= self::$IRANIAN_DAYS[$i]; $i++ ) {
 			$jDayNo -= self::$IRANIAN_DAYS[$i];
 		}
@@ -1601,7 +1621,7 @@ class Language {
 		$jm = $i + 1;
 		$jd = $jDayNo + 1;
 
-		return [ $jy, $jm, $jd ];
+		return [ $jy, $jm, $jd, $jz ];
 	}
 
 	/**
@@ -1609,7 +1629,7 @@ class Language {
 	 *
 	 * Based on a PHP-Nuke block by Sharjeel which is released under GNU/GPL license
 	 *
-	 * @see http://phpnuke.org/modules.php?name=News&file=article&sid=8234&mode=thread&order=0&thold=0
+	 * @see https://phpnuke.org/modules.php?name=News&file=article&sid=8234&mode=thread&order=0&thold=0
 	 *
 	 * @param string $ts
 	 *
@@ -1838,9 +1858,9 @@ class Language {
 	 * Algorithm to convert Gregorian dates to Thai solar dates,
 	 * Minguo dates or Minguo dates.
 	 *
-	 * Link: http://en.wikipedia.org/wiki/Thai_solar_calendar
-	 *       http://en.wikipedia.org/wiki/Minguo_calendar
-	 *       http://en.wikipedia.org/wiki/Japanese_era_name
+	 * Link: https://en.wikipedia.org/wiki/Thai_solar_calendar
+	 *       https://en.wikipedia.org/wiki/Minguo_calendar
+	 *       https://en.wikipedia.org/wiki/Japanese_era_name
 	 *
 	 * @param string $ts 14-character timestamp
 	 * @param string $cName Calender name
@@ -2289,7 +2309,7 @@ class Language {
 
 	/**
 	 * Takes a number of seconds and returns an array with a set of corresponding intervals.
-	 * For example 65 will be turned into array( minutes => 1, seconds => 5 ).
+	 * For example 65 will be turned into [ minutes => 1, seconds => 5 ].
 	 *
 	 * @since 1.20
 	 *
@@ -2577,12 +2597,9 @@ class Language {
 	 * @return string
 	 */
 	public function iconv( $in, $out, $string ) {
-		# This is a wrapper for iconv in all languages except esperanto,
-		# which does some nasty x-conversions beforehand
-
 		# Even with //IGNORE iconv can whine about illegal characters in
 		# *input* string. We just ignore those too.
-		# REF: http://bugs.php.net/bug.php?id=37166
+		# REF: https://bugs.php.net/bug.php?id=37166
 		# REF: https://phabricator.wikimedia.org/T18885
 		MediaWiki\suppressWarnings();
 		$text = iconv( $in, $out . '//IGNORE', $string );
@@ -2929,46 +2946,29 @@ class Language {
 		}
 	}
 
+	/**
+	 * @deprecated No-op since 1.28
+	 */
 	function initEncoding() {
-		# Some languages may have an alternate char encoding option
-		# (Esperanto X-coding, Japanese furigana conversion, etc)
-		# If this language is used as the primary content language,
-		# an override to the defaults can be set here on startup.
+		// No-op.
 	}
 
 	/**
 	 * @param string $s
 	 * @return string
+	 * @deprecated No-op since 1.28
 	 */
 	function recodeForEdit( $s ) {
-		# For some languages we'll want to explicitly specify
-		# which characters make it into the edit box raw
-		# or are converted in some way or another.
-		global $wgEditEncoding;
-		if ( $wgEditEncoding == '' || $wgEditEncoding == 'UTF-8' ) {
-			return $s;
-		} else {
-			return $this->iconv( 'UTF-8', $wgEditEncoding, $s );
-		}
+		return $s;
 	}
 
 	/**
 	 * @param string $s
 	 * @return string
+	 * @deprecated No-op since 1.28
 	 */
 	function recodeInput( $s ) {
-		# Take the previous into account.
-		global $wgEditEncoding;
-		if ( $wgEditEncoding != '' ) {
-			$enc = $wgEditEncoding;
-		} else {
-			$enc = 'UTF-8';
-		}
-		if ( $enc == 'UTF-8' ) {
-			return $s;
-		} else {
-			return $this->iconv( $enc, 'UTF-8', $s );
-		}
+		return $s;
 	}
 
 	/**
@@ -3736,6 +3736,7 @@ class Language {
 
 		return $word;
 	}
+
 	/**
 	 * Get the grammar forms for the content language
 	 * @return array Array of grammar forms
@@ -3751,6 +3752,46 @@ class Language {
 
 		return [];
 	}
+
+	/**
+	 * Get the grammar transformations data for the language.
+	 * Used like grammar forms, with {{GRAMMAR}} and cases,
+	 * but uses pairs of regexes and replacements instead of code.
+	 *
+	 * @return array[] Array of grammar transformations.
+	 * @throws MWException
+	 * @since 1.28
+	 */
+	public function getGrammarTransformations() {
+		$languageCode = $this->getCode();
+
+		if ( self::$grammarTransformations === null ) {
+			self::$grammarTransformations = new MapCacheLRU( 10 );
+		}
+
+		if ( self::$grammarTransformations->has( $languageCode ) ) {
+			return self::$grammarTransformations->get( $languageCode );
+		}
+
+		$data = [];
+
+		$grammarDataFile = __DIR__ . "/data/grammarTransformations/$languageCode.json";
+		if ( is_readable( $grammarDataFile ) ) {
+			$data = FormatJson::decode(
+				file_get_contents( $grammarDataFile ),
+				true
+			);
+
+			if ( $data === null ) {
+				throw new MWException( "Invalid grammar data for \"$languageCode\"." );
+			}
+
+			self::$grammarTransformations->set( $languageCode, $data );
+		}
+
+		return $data;
+	}
+
 	/**
 	 * Provides an alternative text depending on specified gender.
 	 * Usage {{gender:username|masculine|feminine|unknown}}.
@@ -4191,6 +4232,17 @@ class Language {
 	}
 
 	/**
+	 * Compare with an other language object
+	 *
+	 * @since 1.28
+	 * @param Language $lang
+	 * @return boolean
+	 */
+	public function equals( Language $lang ) {
+		return $lang->getCode() === $this->mCode;
+	}
+
+	/**
 	 * Get the internal language code for this language object
 	 *
 	 * NOTE: The return value of this function is NOT HTML-safe and must be escaped with
@@ -4456,14 +4508,15 @@ class Language {
 	}
 
 	/**
-	 * @todo Document
+	 * Formats a time given in seconds into a string representation of that time.
+	 *
 	 * @param int|float $seconds
-	 * @param array $format Optional
-	 *   If $format['avoid'] === 'avoidseconds': don't mention seconds if $seconds >= 1 hour.
-	 *   If $format['avoid'] === 'avoidminutes': don't mention seconds/minutes if $seconds > 48 hours.
+	 * @param array $format An optional argument that formats the returned string in different ways:
+	 *   If $format['avoid'] === 'avoidseconds': don't show seconds if $seconds >= 1 hour,
+	 *   If $format['avoid'] === 'avoidminutes': don't show seconds/minutes if $seconds > 48 hours,
 	 *   If $format['noabbrevs'] is true: use 'seconds' and friends instead of 'seconds-abbrev'
 	 *     and friends.
-	 *   For backwards compatibility, $format may also be one of the strings 'avoidseconds'
+	 * @note For backwards compatibility, $format may also be one of the strings 'avoidseconds'
 	 *     or 'avoidminutes'.
 	 * @return string
 	 */

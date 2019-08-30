@@ -159,6 +159,9 @@ class SpecialRecentChanges extends ChangesListSpecialPage {
 			if ( preg_match( '/^namespace=(\d+)$/', $bit, $m ) ) {
 				$opts['namespace'] = $m[1];
 			}
+			if ( preg_match( '/^tagfilter=(.*)$/', $bit, $m ) ) {
+				$opts['tagfilter'] = $m[1];
+			}
 		}
 	}
 
@@ -281,7 +284,7 @@ class SpecialRecentChanges extends ChangesListSpecialPage {
 	}
 
 	protected function getDB() {
-		return wfGetDB( DB_SLAVE, 'recentchanges' );
+		return wfGetDB( DB_REPLICA, 'recentchanges' );
 	}
 
 	public function outputFeedLinks() {
@@ -310,7 +313,7 @@ class SpecialRecentChanges extends ChangesListSpecialPage {
 	/**
 	 * Build and output the actual changes list.
 	 *
-	 * @param array $rows Database rows
+	 * @param ResultWrapper $rows Database rows
 	 * @param FormOptions $opts
 	 */
 	public function outputChangesList( $rows, $opts ) {
@@ -794,4 +797,9 @@ class SpecialRecentChanges extends ChangesListSpecialPage {
 	public function isIncludable() {
 		return true;
 	}
+
+	protected function getCacheTTL() {
+		return 60 * 5;
+	}
+
 }

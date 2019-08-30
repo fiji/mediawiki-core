@@ -181,6 +181,10 @@ class ApiQuerySiteinfo extends ApiQueryBase {
 		$data['legaltitlechars'] = Title::legalChars();
 		$data['invalidusernamechars'] = $config->get( 'InvalidUsernameCharacters' );
 
+		$data['allunicodefixes'] = (bool)$config->get( 'AllUnicodeFixes' );
+		$data['fixarabicunicode'] = (bool)$config->get( 'FixArabicUnicode' );
+		$data['fixmalayalamunicode'] = (bool)$config->get( 'FixMalayalamUnicode' );
+
 		global $IP;
 		$git = SpecialVersion::getGitHeadSha1( $IP );
 		if ( $git ) {
@@ -221,6 +225,8 @@ class ApiQuerySiteinfo extends ApiQueryBase {
 		}
 		$data['writeapi'] = (bool)$config->get( 'EnableWriteAPI' );
 
+		$data['maxarticlesize'] = $config->get( 'MaxArticleSize' ) * 1024;
+
 		$tz = $config->get( 'Localtimezone' );
 		$offset = $config->get( 'LocalTZoffset' );
 		if ( is_null( $tz ) ) {
@@ -245,7 +251,7 @@ class ApiQuerySiteinfo extends ApiQueryBase {
 
 		$data['uploadsenabled'] = UploadBase::isEnabled();
 		$data['maxuploadsize'] = UploadBase::getMaxUploadSize();
-		$data['minuploadchunksize'] = (int)$this->getConfig()->get( 'MinUploadChunkSize' );
+		$data['minuploadchunksize'] = (int)$config->get( 'MinUploadChunkSize' );
 
 		$data['thumblimits'] = $config->get( 'ThumbLimits' );
 		ApiResult::setArrayType( $data['thumblimits'], 'BCassoc' );
@@ -264,9 +270,12 @@ class ApiQuerySiteinfo extends ApiQueryBase {
 			$data['favicon'] = wfExpandUrl( $favicon, PROTO_RELATIVE );
 		}
 
-		$data['centralidlookupprovider'] = $this->getConfig()->get( 'CentralIdLookupProvider' );
-		$providerIds = array_keys( $this->getConfig()->get( 'CentralIdLookupProviders' ) );
+		$data['centralidlookupprovider'] = $config->get( 'CentralIdLookupProvider' );
+		$providerIds = array_keys( $config->get( 'CentralIdLookupProviders' ) );
 		$data['allcentralidlookupproviders'] = $providerIds;
+
+		$data['interwikimagic'] = (bool)$config->get( 'InterwikiMagic' );
+		$data['magiclinks'] = $config->get( 'EnableMagicLinks' );
 
 		Hooks::run( 'APIQuerySiteInfoGeneralInfo', [ $this, &$data ] );
 
@@ -586,7 +595,7 @@ class ApiQuerySiteinfo extends ApiQueryBase {
 					$ret['description'] = $ext['description'];
 				}
 				if ( isset( $ext['descriptionmsg'] ) ) {
-					// Can be a string or array( key, param1, param2, ... )
+					// Can be a string or [ key, param1, param2, ... ]
 					if ( is_array( $ext['descriptionmsg'] ) ) {
 						$ret['descriptionmsg'] = $ext['descriptionmsg'][0];
 						$ret['descriptionmsgparams'] = array_slice( $ext['descriptionmsg'], 1 );

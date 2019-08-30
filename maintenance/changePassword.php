@@ -51,8 +51,16 @@ class ChangePassword extends Maintenance {
 		if ( !$user || !$user->getId() ) {
 			$this->error( "No such user: " . $this->getOption( 'user' ), true );
 		}
+		$password = $this->getOption( 'password' );
 		try {
-			$user->setPassword( $this->getOption( 'password' ) );
+			$status = $user->changeAuthenticationData( [
+				'username' => $user->getName(),
+				'password' => $password,
+				'retype' => $password,
+			] );
+			if ( !$status->isGood() ) {
+				throw new PasswordError( $status->getWikiText( null, null, 'en' ) );
+			}
 			$user->saveSettings();
 			$this->output( "Password set for " . $user->getName() . "\n" );
 		} catch ( PasswordError $pwe ) {

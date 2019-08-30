@@ -301,7 +301,6 @@
 	"yourpassword": "Vosse sicret",
 	"userlogin-yourpassword": "Sicret",
 	"yourpasswordagain": "Ritapez vosse sicret",
-	"remembermypassword": "Rimimbrer m' sicret inte les sessions (nén dpus ki po $1 {{PLURAL:$1|djoû|djoûs}})",
 	"yourdomainname": "Vosse dominne",
 	"login": "S' elodjî",
 	"nav-login-createaccount": "Ahiver on conte, udon-bén s' elodjî",
@@ -416,6 +415,7 @@
 	"minoredit": "Ci n' est k' ene tchitcheye",
 	"watchthis": "Shuve cist årtike",
 	"savearticle": "Schaper l' pådje",
+	"savechanges": "Schaper l' pådje",
 	"preview": "Vey divant",
 	"showpreview": "Vey divant",
 	"showdiff": "Vey les candjmints",
@@ -488,7 +488,6 @@
 	"editwarning-warning": "Cwiter cisse pådje ci vos frè piede tos les candjmints ki vos avoz fwait.\nSi vos estoz elodjî, vos ploz dismete cist adviertixhmint ci dins l' linwete «Boesse di tecse» di vos preferinces.",
 	"post-expand-template-inclusion-warning": "'''Asteme:''' I gn a trop di modeles dins cisse pådje ci.\nSacwants di zels ni seront nén eployîs.",
 	"post-expand-template-inclusion-category": "Pådjes ki l' inclusion d' modeles est foû limite",
-	"cantcreateaccounttitle": "Vos n' ploz nén ahiver-st on conte.",
 	"viewpagelogs": "Vey les djournås po cisse pådje ci",
 	"nohistory": "I n' a pont d' istwere des modêyes po cisse pådje chal.",
 	"currentrev": "Modêye d' asteure",
@@ -1306,7 +1305,7 @@
 	"allmessagesname": "No del variåve",
 	"allmessagesdefault": "Tecse prémetou",
 	"allmessagescurrent": "Tecse pol moumint",
-	"allmessagestext": "Çouchal est ene djivêye des messaedjes sistinme k' i gn a dins l' espåce di lomaedje ''MediaWiki:''.\nLoukîz les pådjes sol [https://www.mediawiki.org/wiki/Special:MyLanguage/Localisation Locålijhaedje di MediaWiki] et \n[//translatewiki.net/ translatewiki.net] si vos vloz pårticiper avou l' ratournaeje djenerike di MediaWiki.",
+	"allmessagestext": "Çouchal est ene djivêye des messaedjes sistinme k' i gn a dins l' espåce di lomaedje ''MediaWiki:''.\nLoukîz les pådjes sol [https://www.mediawiki.org/wiki/Special:MyLanguage/Localisation Locålijhaedje di MediaWiki] et \n[https://translatewiki.net/ translatewiki.net] si vos vloz pårticiper avou l' ratournaeje djenerike di MediaWiki.",
 	"allmessagesnotsupportedDB": "'''{{ns:special}}:AllMessages''' n' est nén sopoirté paski '''$wgUseDatabaseMessages''' est dismetou.",
 	"allmessages-filter-legend": "Passete",
 	"allmessages-filter": "Sorlon l' estat d' candjaedje:",
@@ -1704,6 +1703,5 @@
 	"duration-years": "$1 anêye{{PLURAL:$1||s}}",
 	"duration-decades": "$1 dijhinne{{PLURAL:$1||s}} d' anêyes",
 	"duration-centuries": "$1 sieke{{PLURAL:$1||s}}",
-	"duration-millennia": "$1 meynaire{{PLURAL:$1||s}}",
-	"api-error-blacklisted": "S' i vs plait, tchoezixhoz èn ôte tite, pus esplicant."
+	"duration-millennia": "$1 meynaire{{PLURAL:$1||s}}"
 }

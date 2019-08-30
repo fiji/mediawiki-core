@@ -19,6 +19,9 @@
  *
  * @file
  */
+
+use MediaWiki\MediaWikiServices;
+
 class Block {
 	/** @var string */
 	public $mReason;
@@ -145,7 +148,7 @@ class Block {
 
 		$this->mReason = $options['reason'];
 		$this->mTimestamp = wfTimestamp( TS_MW, $options['timestamp'] );
-		$this->mExpiry = wfGetDB( DB_SLAVE )->decodeExpiry( $options['expiry'] );
+		$this->mExpiry = wfGetDB( DB_REPLICA )->decodeExpiry( $options['expiry'] );
 
 		# Boolean settings
 		$this->mAuto = (bool)$options['auto'];
@@ -168,7 +171,7 @@ class Block {
 	 * @return Block|null
 	 */
 	public static function newFromID( $id ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$res = $dbr->selectRow(
 			'ipblocks',
 			self::selectFields(),
@@ -242,7 +245,7 @@ class Block {
 	 * @return bool Whether a relevant block was found
 	 */
 	protected function newLoad( $vagueTarget = null ) {
-		$db = wfGetDB( $this->mFromMaster ? DB_MASTER : DB_SLAVE );
+		$db = wfGetDB( $this->mFromMaster ? DB_MASTER : DB_REPLICA );
 
 		if ( $this->type !== null ) {
 			$conds = [
@@ -351,7 +354,7 @@ class Block {
 		# range. We know that all blocks must be smaller than $wgBlockCIDRLimit,
 		# so we can improve performance by filtering on a LIKE clause
 		$chunk = self::getIpFragment( $start );
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$like = $dbr->buildLike( $chunk, $dbr->anyString() );
 
 		# Fairly hard to make a malicious SQL statement out of hex characters,
@@ -405,7 +408,7 @@ class Block {
 		$this->mParentBlockId = $row->ipb_parent_block_id;
 
 		// I wish I didn't have to do this
-		$this->mExpiry = wfGetDB( DB_SLAVE )->decodeExpiry( $row->ipb_expiry );
+		$this->mExpiry = wfGetDB( DB_REPLICA )->decodeExpiry( $row->ipb_expiry );
 
 		$this->isHardblock( !$row->ipb_anon_only );
 		$this->isAutoblocking( $row->ipb_enable_autoblock );
@@ -457,6 +460,7 @@ class Block {
 	 *	('id' => block ID, 'autoIds' => array of autoblock IDs)
 	 */
 	public function insert( $dbw = null ) {
+		global $wgBlockDisablesLogin;
 		wfDebug( "Block::insert; timestamp {$this->mTimestamp}\n" );
 
 		if ( $dbw === null ) {
@@ -499,6 +503,13 @@ class Block {
 
 		if ( $affected ) {
 			$auto_ipd_ids = $this->doRetroactiveAutoblock();
+
+			if ( $wgBlockDisablesLogin && $this->target instanceof User ) {
+				// Change user login token to force them to be logged out.
+				$this->target->setToken();
+				$this->target->saveSettings();
+			}
+
 			return [ 'id' => $this->mId, 'autoIds' => $auto_ipd_ids ];
 		}
 
@@ -561,7 +572,7 @@ class Block {
 	 */
 	protected function getDatabaseArray( $db = null ) {
 		if ( !$db ) {
-			$db = wfGetDB( DB_SLAVE );
+			$db = wfGetDB( DB_REPLICA );
 		}
 		$expiry = $db->encodeExpiry( $this->mExpiry );
 
@@ -645,7 +656,7 @@ class Block {
 			return;
 		}
 
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 
 		$options = [ 'ORDER BY' => 'rc_timestamp DESC' ];
 		$conds = [ 'rc_user_text' => (string)$block->getTarget() ];
@@ -681,11 +692,13 @@ class Block {
 	public static function isWhitelistedFromAutoblocks( $ip ) {
 		// Try to get the autoblock_whitelist from the cache, as it's faster
 		// than getting the msg raw and explode()'ing it.
-		$cache = ObjectCache::getMainWANInstance();
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
 		$lines = $cache->getWithSetCallback(
 			wfMemcKey( 'ipb', 'autoblock', 'whitelist' ),
 			$cache::TTL_DAY,
-			function () {
+			function ( $curValue, &$ttl, array &$setOpts ) {
+				$setOpts += Database::getCacheSetOptions( wfGetDB( DB_REPLICA ) );
+
 				return explode( "\n",
 					wfMessage( 'autoblock_whitelist' )->inContentLanguage()->plain() );
 			}
@@ -961,28 +974,40 @@ class Block {
 
 	/**
 	 * Get/set whether the Block prevents a given action
-	 * @param string $action
-	 * @param bool|null $x
-	 * @return bool
+	 *
+	 * @param string $action Action to check
+	 * @param bool|null $x Value for set, or null to just get value
+	 * @return bool|null Null for unrecognized rights.
 	 */
 	public function prevents( $action, $x = null ) {
+		global $wgBlockDisablesLogin;
+		$res = null;
 		switch ( $action ) {
 			case 'edit':
 				# For now... <evil laugh>
-				return true;
-
+				$res = true;
+				break;
 			case 'createaccount':
-				return wfSetVar( $this->mCreateAccount, $x );
-
+				$res = wfSetVar( $this->mCreateAccount, $x );
+				break;
 			case 'sendemail':
-				return wfSetVar( $this->mBlockEmail, $x );
-
+				$res = wfSetVar( $this->mBlockEmail, $x );
+				break;
 			case 'editownusertalk':
-				return wfSetVar( $this->mDisableUsertalk, $x );
-
-			default:
-				return null;
+				$res = wfSetVar( $this->mDisableUsertalk, $x );
+				break;
+			case 'read':
+				$res = false;
+				break;
 		}
+		if ( !$res && $wgBlockDisablesLogin ) {
+			// If a block would disable login, then it should
+			// prevent any action that all users cannot do
+			$anon = new User;
+			$res = $anon->isAllowed( $action ) ? $res : true;
+		}
+
+		return $res;
 	}
 
 	/**
@@ -1090,7 +1115,7 @@ class Block {
 	 * @param array $ipChain List of IPs (strings), usually retrieved from the
 	 *	   X-Forwarded-For header of the request
 	 * @param bool $isAnon Exclude anonymous-only blocks if false
-	 * @param bool $fromMaster Whether to query the master or slave database
+	 * @param bool $fromMaster Whether to query the master or replica DB
 	 * @return array Array of Blocks
 	 * @since 1.22
 	 */
@@ -1100,6 +1125,7 @@ class Block {
 		}
 
 		$conds = [];
+		$proxyLookup = MediaWikiServices::getInstance()->getProxyLookup();
 		foreach ( array_unique( $ipChain ) as $ipaddr ) {
 			# Discard invalid IP addresses. Since XFF can be spoofed and we do not
 			# necessarily trust the header given to us, make sure that we are only
@@ -1110,7 +1136,7 @@ class Block {
 				continue;
 			}
 			# Don't check trusted IPs (includes local squids which will be in every request)
-			if ( IP::isTrustedProxy( $ipaddr ) ) {
+			if ( $proxyLookup->isTrustedProxy( $ipaddr ) ) {
 				continue;
 			}
 			# Check both the original IP (to check against single blocks), as well as build
@@ -1126,7 +1152,7 @@ class Block {
 		if ( $fromMaster ) {
 			$db = wfGetDB( DB_MASTER );
 		} else {
-			$db = wfGetDB( DB_SLAVE );
+			$db = wfGetDB( DB_REPLICA );
 		}
 		$conds = $db->makeList( $conds, LIST_OR );
 		if ( !$isAnon ) {

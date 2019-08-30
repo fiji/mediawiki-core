@@ -20,6 +20,7 @@
  * @file
  */
 use MediaWiki\Linker\LinkTarget;
+use MediaWiki\MediaWikiServices;
 
 /**
  * Some internal bits split of from Skin.php. These functions are used
@@ -136,23 +137,24 @@ class Linker {
 	/**
 	 * Return the CSS colour of a known link
 	 *
+	 * @deprecated since 1.28, use LinkRenderer::getLinkClasses() instead
+	 *
 	 * @since 1.16.3
-	 * @param Title $t
+	 * @param LinkTarget $t
 	 * @param int $threshold User defined threshold
 	 * @return string CSS class
 	 */
-	public static function getLinkColour( $t, $threshold ) {
-		$colour = '';
-		if ( $t->isRedirect() ) {
-			# Page is a redirect
-			$colour = 'mw-redirect';
-		} elseif ( $threshold > 0 && $t->isContentPage() &&
-			$t->exists() && $t->getLength() < $threshold
-		) {
-			# Page is a stub
-			$colour = 'stub';
+	public static function getLinkColour( LinkTarget $t, $threshold ) {
+		wfDeprecated( __METHOD__, '1.28' );
+		$services = MediaWikiServices::getInstance();
+		$linkRenderer = $services->getLinkRenderer();
+		if ( $threshold !== $linkRenderer->getStubThreshold() ) {
+			// Need to create a new instance with the right stub threshold...
+			$linkRenderer = $services->getLinkRendererFactory()->create();
+			$linkRenderer->setStubThreshold( $threshold );
 		}
-		return $colour;
+
+		return $linkRenderer->getLinkClasses( $t );
 	}
 
 	/**
@@ -168,6 +170,7 @@ class Linker {
 	 * link() replaces the old functions in the makeLink() family.
 	 *
 	 * @since 1.18 Method exists since 1.16 as non-static, made static in 1.18.
+	 * @deprecated since 1.28, use MediaWiki\Linker\LinkRenderer instead
 	 *
 	 * @param Title $target Can currently only be a Title, but this may
 	 *   change to support Images, literal URLs, etc.
@@ -210,192 +213,50 @@ class Linker {
 			wfDeprecated( __METHOD__ . ' with parameter $query as string (should be array)', '1.20' );
 			$query = wfCgiToArray( $query );
 		}
+
+		$services = MediaWikiServices::getInstance();
 		$options = (array)$options;
-
-		$dummy = new DummyLinker; // dummy linker instance for bc on the hooks
-
-		$ret = null;
-		if ( !Hooks::run( 'LinkBegin',
-			[ $dummy, $target, &$html, &$customAttribs, &$query, &$options, &$ret ] )
-		) {
-			return $ret;
-		}
-
-		# Normalize the Title if it's a special page
-		$target = self::normaliseSpecialPage( $target );
-
-		# If we don't know whether the page exists, let's find out.
-		if ( !in_array( 'known', $options, true ) && !in_array( 'broken', $options, true ) ) {
-			if ( $target->isKnown() ) {
-				$options[] = 'known';
-			} else {
-				$options[] = 'broken';
+		if ( $options ) {
+			// Custom options, create new LinkRenderer
+			if ( !isset( $options['stubThreshold'] ) ) {
+				$defaultLinkRenderer = $services->getLinkRenderer();
+				$options['stubThreshold'] = $defaultLinkRenderer->getStubThreshold();
 			}
+			$linkRenderer = $services->getLinkRendererFactory()
+				->createFromLegacyOptions( $options );
+		} else {
+			$linkRenderer = $services->getLinkRenderer();
 		}
 
-		$oldquery = [];
-		if ( in_array( "forcearticlepath", $options, true ) && $query ) {
-			$oldquery = $query;
-			$query = [];
+		if ( $html !== null ) {
+			$text = new HtmlArmor( $html );
+		} else {
+			$text = $html; // null
 		}
-
-		# Note: we want the href attribute first, for prettiness.
-		$attribs = [ 'href' => self::linkUrl( $target, $query, $options ) ];
-		if ( in_array( 'forcearticlepath', $options, true ) && $oldquery ) {
-			$attribs['href'] = wfAppendQuery( $attribs['href'], $oldquery );
+		if ( in_array( 'known', $options, true ) ) {
+			return $linkRenderer->makeKnownLink( $target, $text, $customAttribs, $query );
+		} elseif ( in_array( 'broken', $options, true ) ) {
+			return $linkRenderer->makeBrokenLink( $target, $text, $customAttribs, $query );
+		} elseif ( in_array( 'noclasses', $options, true ) ) {
+			return $linkRenderer->makePreloadedLink( $target, $text, '', $customAttribs, $query );
+		} else {
+			return $linkRenderer->makeLink( $target, $text, $customAttribs, $query );
 		}
-
-		$attribs = array_merge(
-			$attribs,
-			self::linkAttribs( $target, $customAttribs, $options )
-		);
-		if ( is_null( $html ) ) {
-			$html = self::linkText( $target );
-		}
-
-		$ret = null;
-		if ( Hooks::run( 'LinkEnd', [ $dummy, $target, $options, &$html, &$attribs, &$ret ] ) ) {
-			$ret = Html::rawElement( 'a', $attribs, $html );
-		}
-
-		return $ret;
 	}
 
 	/**
 	 * Identical to link(), except $options defaults to 'known'.
+	 *
 	 * @since 1.16.3
+	 * @deprecated since 1.28, use MediaWiki\Linker\LinkRenderer instead
 	 * @see Linker::link
 	 * @return string
 	 */
 	public static function linkKnown(
 		$target, $html = null, $customAttribs = [],
-		$query = [], $options = [ 'known', 'noclasses' ]
+		$query = [], $options = [ 'known' ]
 	) {
 		return self::link( $target, $html, $customAttribs, $query, $options );
-	}
-
-	/**
-	 * Returns the Url used to link to a Title
-	 *
-	 * @param LinkTarget $target
-	 * @param array $query Query parameters
-	 * @param array $options
-	 * @return string
-	 */
-	private static function linkUrl( LinkTarget $target, $query, $options ) {
-		# We don't want to include fragments for broken links, because they
-		# generally make no sense.
-		if ( in_array( 'broken', $options, true ) && $target->hasFragment() ) {
-			$target = $target->createFragmentTarget( '' );
-		}
-
-		# If it's a broken link, add the appropriate query pieces, unless
-		# there's already an action specified, or unless 'edit' makes no sense
-		# (i.e., for a nonexistent special page).
-		if ( in_array( 'broken', $options, true ) && empty( $query['action'] )
-			&& $target->getNamespace() !== NS_SPECIAL ) {
-			$query['action'] = 'edit';
-			$query['redlink'] = '1';
-		}
-
-		if ( in_array( 'http', $options, true ) ) {
-			$proto = PROTO_HTTP;
-		} elseif ( in_array( 'https', $options, true ) ) {
-			$proto = PROTO_HTTPS;
-		} else {
-			$proto = PROTO_RELATIVE;
-		}
-
-		$title = Title::newFromLinkTarget( $target );
-		$ret = $title->getLinkURL( $query, false, $proto );
-		return $ret;
-	}
-
-	/**
-	 * Returns the array of attributes used when linking to the Title $target
-	 *
-	 * @param Title $target
-	 * @param array $attribs
-	 * @param array $options
-	 *
-	 * @return array
-	 */
-	private static function linkAttribs( $target, $attribs, $options ) {
-		global $wgUser;
-		$defaults = [];
-
-		if ( !in_array( 'noclasses', $options, true ) ) {
-			# Now build the classes.
-			$classes = [];
-
-			if ( in_array( 'broken', $options, true ) ) {
-				$classes[] = 'new';
-			}
-
-			if ( $target->isExternal() ) {
-				$classes[] = 'extiw';
-			}
-
-			if ( !in_array( 'broken', $options, true ) ) { # Avoid useless calls to LinkCache (see r50387)
-				$colour = self::getLinkColour(
-					$target,
-					isset( $options['stubThreshold'] ) ? $options['stubThreshold'] : $wgUser->getStubThreshold()
-				);
-				if ( $colour !== '' ) {
-					$classes[] = $colour; # mw-redirect or stub
-				}
-			}
-			if ( $classes != [] ) {
-				$defaults['class'] = implode( ' ', $classes );
-			}
-		}
-
-		# Get a default title attribute.
-		if ( $target->getPrefixedText() == '' ) {
-			# A link like [[#Foo]].  This used to mean an empty title
-			# attribute, but that's silly.  Just don't output a title.
-		} elseif ( in_array( 'known', $options, true ) ) {
-			$defaults['title'] = $target->getPrefixedText();
-		} else {
-			// This ends up in parser cache!
-			$defaults['title'] = wfMessage( 'red-link-title', $target->getPrefixedText() )
-				->inContentLanguage()
-				->text();
-		}
-
-		# Finally, merge the custom attribs with the default ones, and iterate
-		# over that, deleting all "false" attributes.
-		$ret = [];
-		$merged = Sanitizer::mergeAttributes( $defaults, $attribs );
-		foreach ( $merged as $key => $val ) {
-			# A false value suppresses the attribute, and we don't want the
-			# href attribute to be overridden.
-			if ( $key != 'href' && $val !== false ) {
-				$ret[$key] = $val;
-			}
-		}
-		return $ret;
-	}
-
-	/**
-	 * Default text of the links to the Title $target
-	 *
-	 * @param Title $target
-	 *
-	 * @return string
-	 */
-	private static function linkText( $target ) {
-		if ( !$target instanceof Title ) {
-			wfWarn( __METHOD__ . ': Requires $target to be a Title object.' );
-			return '';
-		}
-		// If the target is just a fragment, with no title, we return the fragment
-		// text.  Otherwise, we return the title text itself.
-		if ( $target->getPrefixedText() === '' && $target->hasFragment() ) {
-			return htmlspecialchars( $target->getFragment() );
-		}
-
-		return htmlspecialchars( $target->getPrefixedText() );
 	}
 
 	/**
@@ -455,15 +316,15 @@ class Linker {
 	/**
 	 * @since 1.16.3
 	 * @param LinkTarget $target
-	 * @return LinkTarget|Title You will get back the same type you passed in, or a Title object
+	 * @return LinkTarget
 	 */
 	public static function normaliseSpecialPage( LinkTarget $target ) {
-		if ( $target->getNamespace() == NS_SPECIAL ) {
+		if ( $target->getNamespace() == NS_SPECIAL && !$target->isExternal() ) {
 			list( $name, $subpage ) = SpecialPageFactory::resolveAlias( $target->getDBkey() );
 			if ( !$name ) {
 				return $target;
 			}
-			$ret = SpecialPage::getTitleFor( $name, $subpage, $target->getFragment() );
+			$ret = SpecialPage::getTitleValueFor( $name, $subpage, $target->getFragment() );
 			return $ret;
 		} else {
 			return $target;
@@ -567,47 +428,43 @@ class Linker {
 			return self::link( $title );
 		}
 
-		// Shortcuts
-		$fp =& $frameParams;
-		$hp =& $handlerParams;
-
 		// Clean up parameters
-		$page = isset( $hp['page'] ) ? $hp['page'] : false;
-		if ( !isset( $fp['align'] ) ) {
-			$fp['align'] = '';
+		$page = isset( $handlerParams['page'] ) ? $handlerParams['page'] : false;
+		if ( !isset( $frameParams['align'] ) ) {
+			$frameParams['align'] = '';
 		}
-		if ( !isset( $fp['alt'] ) ) {
-			$fp['alt'] = '';
+		if ( !isset( $frameParams['alt'] ) ) {
+			$frameParams['alt'] = '';
 		}
-		if ( !isset( $fp['title'] ) ) {
-			$fp['title'] = '';
+		if ( !isset( $frameParams['title'] ) ) {
+			$frameParams['title'] = '';
 		}
-		if ( !isset( $fp['class'] ) ) {
-			$fp['class'] = '';
+		if ( !isset( $frameParams['class'] ) ) {
+			$frameParams['class'] = '';
 		}
 
 		$prefix = $postfix = '';
 
-		if ( 'center' == $fp['align'] ) {
+		if ( 'center' == $frameParams['align'] ) {
 			$prefix = '<div class="center">';
 			$postfix = '</div>';
-			$fp['align'] = 'none';
+			$frameParams['align'] = 'none';
 		}
-		if ( $file && !isset( $hp['width'] ) ) {
-			if ( isset( $hp['height'] ) && $file->isVectorized() ) {
+		if ( $file && !isset( $handlerParams['width'] ) ) {
+			if ( isset( $handlerParams['height'] ) && $file->isVectorized() ) {
 				// If its a vector image, and user only specifies height
 				// we don't want it to be limited by its "normal" width.
 				global $wgSVGMaxSize;
-				$hp['width'] = $wgSVGMaxSize;
+				$handlerParams['width'] = $wgSVGMaxSize;
 			} else {
-				$hp['width'] = $file->getWidth( $page );
+				$handlerParams['width'] = $file->getWidth( $page );
 			}
 
-			if ( isset( $fp['thumbnail'] )
-				|| isset( $fp['manualthumb'] )
-				|| isset( $fp['framed'] )
-				|| isset( $fp['frameless'] )
-				|| !$hp['width']
+			if ( isset( $frameParams['thumbnail'] )
+				|| isset( $frameParams['manualthumb'] )
+				|| isset( $frameParams['framed'] )
+				|| isset( $frameParams['frameless'] )
+				|| !$handlerParams['width']
 			) {
 				global $wgThumbLimits, $wgThumbUpright;
 
@@ -616,73 +473,77 @@ class Linker {
 				}
 
 				// Reduce width for upright images when parameter 'upright' is used
-				if ( isset( $fp['upright'] ) && $fp['upright'] == 0 ) {
-					$fp['upright'] = $wgThumbUpright;
+				if ( isset( $frameParams['upright'] ) && $frameParams['upright'] == 0 ) {
+					$frameParams['upright'] = $wgThumbUpright;
 				}
 
 				// For caching health: If width scaled down due to upright
 				// parameter, round to full __0 pixel to avoid the creation of a
 				// lot of odd thumbs.
-				$prefWidth = isset( $fp['upright'] ) ?
-					round( $wgThumbLimits[$widthOption] * $fp['upright'], -1 ) :
+				$prefWidth = isset( $frameParams['upright'] ) ?
+					round( $wgThumbLimits[$widthOption] * $frameParams['upright'], -1 ) :
 					$wgThumbLimits[$widthOption];
 
 				// Use width which is smaller: real image width or user preference width
 				// Unless image is scalable vector.
-				if ( !isset( $hp['height'] ) && ( $hp['width'] <= 0 ||
-						$prefWidth < $hp['width'] || $file->isVectorized() ) ) {
-					$hp['width'] = $prefWidth;
+				if ( !isset( $handlerParams['height'] ) && ( $handlerParams['width'] <= 0 ||
+						$prefWidth < $handlerParams['width'] || $file->isVectorized() ) ) {
+					$handlerParams['width'] = $prefWidth;
 				}
 			}
 		}
 
-		if ( isset( $fp['thumbnail'] ) || isset( $fp['manualthumb'] ) || isset( $fp['framed'] ) ) {
+		if ( isset( $frameParams['thumbnail'] ) || isset( $frameParams['manualthumb'] )
+			|| isset( $frameParams['framed'] )
+		) {
 			# Create a thumbnail. Alignment depends on the writing direction of
 			# the page content language (right-aligned for LTR languages,
 			# left-aligned for RTL languages)
 			# If a thumbnail width has not been provided, it is set
 			# to the default user option as specified in Language*.php
-			if ( $fp['align'] == '' ) {
-				$fp['align'] = $parser->getTargetLanguage()->alignEnd();
+			if ( $frameParams['align'] == '' ) {
+				$frameParams['align'] = $parser->getTargetLanguage()->alignEnd();
 			}
-			return $prefix . self::makeThumbLink2( $title, $file, $fp, $hp, $time, $query ) . $postfix;
+			return $prefix .
+				self::makeThumbLink2( $title, $file, $frameParams, $handlerParams, $time, $query ) .
+				$postfix;
 		}
 
-		if ( $file && isset( $fp['frameless'] ) ) {
+		if ( $file && isset( $frameParams['frameless'] ) ) {
 			$srcWidth = $file->getWidth( $page );
 			# For "frameless" option: do not present an image bigger than the
 			# source (for bitmap-style images). This is the same behavior as the
 			# "thumb" option does it already.
-			if ( $srcWidth && !$file->mustRender() && $hp['width'] > $srcWidth ) {
-				$hp['width'] = $srcWidth;
+			if ( $srcWidth && !$file->mustRender() && $handlerParams['width'] > $srcWidth ) {
+				$handlerParams['width'] = $srcWidth;
 			}
 		}
 
-		if ( $file && isset( $hp['width'] ) ) {
+		if ( $file && isset( $handlerParams['width'] ) ) {
 			# Create a resized image, without the additional thumbnail features
-			$thumb = $file->transform( $hp );
+			$thumb = $file->transform( $handlerParams );
 		} else {
 			$thumb = false;
 		}
 
 		if ( !$thumb ) {
-			$s = self::makeBrokenImageLinkObj( $title, $fp['title'], '', '', '', $time == true );
+			$s = self::makeBrokenImageLinkObj( $title, $frameParams['title'], '', '', '', $time == true );
 		} else {
-			self::processResponsiveImages( $file, $thumb, $hp );
+			self::processResponsiveImages( $file, $thumb, $handlerParams );
 			$params = [
-				'alt' => $fp['alt'],
-				'title' => $fp['title'],
-				'valign' => isset( $fp['valign'] ) ? $fp['valign'] : false,
-				'img-class' => $fp['class'] ];
-			if ( isset( $fp['border'] ) ) {
+				'alt' => $frameParams['alt'],
+				'title' => $frameParams['title'],
+				'valign' => isset( $frameParams['valign'] ) ? $frameParams['valign'] : false,
+				'img-class' => $frameParams['class'] ];
+			if ( isset( $frameParams['border'] ) ) {
 				$params['img-class'] .= ( $params['img-class'] !== '' ? ' ' : '' ) . 'thumbborder';
 			}
-			$params = self::getImageLinkMTOParams( $fp, $query, $parser ) + $params;
+			$params = self::getImageLinkMTOParams( $frameParams, $query, $parser ) + $params;
 
 			$s = $thumb->toHtml( $params );
 		}
-		if ( $fp['align'] != '' ) {
-			$s = "<div class=\"float{$fp['align']}\">{$s}</div>";
+		if ( $frameParams['align'] != '' ) {
+			$s = "<div class=\"float{$frameParams['align']}\">{$s}</div>";
 		}
 		return str_replace( "\n", ' ', $prefix . $s . $postfix );
 	}
@@ -710,7 +571,9 @@ class Linker {
 				}
 			}
 		} elseif ( isset( $frameParams['link-title'] ) && $frameParams['link-title'] !== '' ) {
-			$mtoParams['custom-title-link'] = self::normaliseSpecialPage( $frameParams['link-title'] );
+			$mtoParams['custom-title-link'] = Title::newFromLinkTarget(
+				self::normaliseSpecialPage( $frameParams['link-title'] )
+			);
 		} elseif ( !empty( $frameParams['no-link'] ) ) {
 			// No link
 		} else {
@@ -763,65 +626,61 @@ class Linker {
 	) {
 		$exists = $file && $file->exists();
 
-		# Shortcuts
-		$fp =& $frameParams;
-		$hp =& $handlerParams;
-
-		$page = isset( $hp['page'] ) ? $hp['page'] : false;
-		if ( !isset( $fp['align'] ) ) {
-			$fp['align'] = 'right';
+		$page = isset( $handlerParams['page'] ) ? $handlerParams['page'] : false;
+		if ( !isset( $frameParams['align'] ) ) {
+			$frameParams['align'] = 'right';
 		}
-		if ( !isset( $fp['alt'] ) ) {
-			$fp['alt'] = '';
+		if ( !isset( $frameParams['alt'] ) ) {
+			$frameParams['alt'] = '';
 		}
-		if ( !isset( $fp['title'] ) ) {
-			$fp['title'] = '';
+		if ( !isset( $frameParams['title'] ) ) {
+			$frameParams['title'] = '';
 		}
-		if ( !isset( $fp['caption'] ) ) {
-			$fp['caption'] = '';
+		if ( !isset( $frameParams['caption'] ) ) {
+			$frameParams['caption'] = '';
 		}
 
-		if ( empty( $hp['width'] ) ) {
+		if ( empty( $handlerParams['width'] ) ) {
 			// Reduce width for upright images when parameter 'upright' is used
-			$hp['width'] = isset( $fp['upright'] ) ? 130 : 180;
+			$handlerParams['width'] = isset( $frameParams['upright'] ) ? 130 : 180;
 		}
 		$thumb = false;
 		$noscale = false;
 		$manualthumb = false;
 
 		if ( !$exists ) {
-			$outerWidth = $hp['width'] + 2;
+			$outerWidth = $handlerParams['width'] + 2;
 		} else {
-			if ( isset( $fp['manualthumb'] ) ) {
+			if ( isset( $frameParams['manualthumb'] ) ) {
 				# Use manually specified thumbnail
-				$manual_title = Title::makeTitleSafe( NS_FILE, $fp['manualthumb'] );
+				$manual_title = Title::makeTitleSafe( NS_FILE, $frameParams['manualthumb'] );
 				if ( $manual_title ) {
 					$manual_img = wfFindFile( $manual_title );
 					if ( $manual_img ) {
-						$thumb = $manual_img->getUnscaledThumb( $hp );
+						$thumb = $manual_img->getUnscaledThumb( $handlerParams );
 						$manualthumb = true;
 					} else {
 						$exists = false;
 					}
 				}
-			} elseif ( isset( $fp['framed'] ) ) {
+			} elseif ( isset( $frameParams['framed'] ) ) {
 				// Use image dimensions, don't scale
-				$thumb = $file->getUnscaledThumb( $hp );
+				$thumb = $file->getUnscaledThumb( $handlerParams );
 				$noscale = true;
 			} else {
 				# Do not present an image bigger than the source, for bitmap-style images
 				# This is a hack to maintain compatibility with arbitrary pre-1.10 behavior
 				$srcWidth = $file->getWidth( $page );
-				if ( $srcWidth && !$file->mustRender() && $hp['width'] > $srcWidth ) {
-					$hp['width'] = $srcWidth;
+				if ( $srcWidth && !$file->mustRender() && $handlerParams['width'] > $srcWidth ) {
+					$handlerParams['width'] = $srcWidth;
 				}
-				$thumb = $file->transform( $hp );
+				$thumb = $file->transform( $handlerParams );
 			}
 
 			if ( $thumb ) {
 				$outerWidth = $thumb->getWidth() + 2;
 			} else {
-				$outerWidth = $hp['width'] + 2;
+				$outerWidth = $handlerParams['width'] + 2;
 			}
 		}
 
@@ -833,35 +692,35 @@ class Linker {
 			$url = wfAppendQuery( $url, [ 'page' => $page ] );
 		}
 		if ( $manualthumb
-			&& !isset( $fp['link-title'] )
-			&& !isset( $fp['link-url'] )
-			&& !isset( $fp['no-link'] ) ) {
-			$fp['link-url'] = $url;
+			&& !isset( $frameParams['link-title'] )
+			&& !isset( $frameParams['link-url'] )
+			&& !isset( $frameParams['no-link'] ) ) {
+			$frameParams['link-url'] = $url;
 		}
 
-		$s = "<div class=\"thumb t{$fp['align']}\">"
+		$s = "<div class=\"thumb t{$frameParams['align']}\">"
 			. "<div class=\"thumbinner\" style=\"width:{$outerWidth}px;\">";
 
 		if ( !$exists ) {
-			$s .= self::makeBrokenImageLinkObj( $title, $fp['title'], '', '', '', $time == true );
+			$s .= self::makeBrokenImageLinkObj( $title, $frameParams['title'], '', '', '', $time == true );
 			$zoomIcon = '';
 		} elseif ( !$thumb ) {
 			$s .= wfMessage( 'thumbnail_error', '' )->escaped();
 			$zoomIcon = '';
 		} else {
 			if ( !$noscale && !$manualthumb ) {
-				self::processResponsiveImages( $file, $thumb, $hp );
+				self::processResponsiveImages( $file, $thumb, $handlerParams );
 			}
 			$params = [
-				'alt' => $fp['alt'],
-				'title' => $fp['title'],
-				'img-class' => ( isset( $fp['class'] ) && $fp['class'] !== ''
-					? $fp['class'] . ' '
+				'alt' => $frameParams['alt'],
+				'title' => $frameParams['title'],
+				'img-class' => ( isset( $frameParams['class'] ) && $frameParams['class'] !== ''
+					? $frameParams['class'] . ' '
 					: '' ) . 'thumbimage'
 			];
-			$params = self::getImageLinkMTOParams( $fp, $query ) + $params;
+			$params = self::getImageLinkMTOParams( $frameParams, $query ) + $params;
 			$s .= $thumb->toHtml( $params );
-			if ( isset( $fp['framed'] ) ) {
+			if ( isset( $frameParams['framed'] ) ) {
 				$zoomIcon = "";
 			} else {
 				$zoomIcon = Html::rawElement( 'div', [ 'class' => 'magnify' ],
@@ -872,7 +731,7 @@ class Linker {
 						"" ) );
 			}
 		}
-		$s .= '  <div class="thumbcaption">' . $zoomIcon . $fp['caption'] . "</div></div></div>";
+		$s .= '  <div class="thumbcaption">' . $zoomIcon . $frameParams['caption'] . "</div></div></div>";
 		return str_replace( "\n", ' ', $s );
 	}
 
@@ -940,7 +799,15 @@ class Linker {
 			$redir = RepoGroup::singleton()->getLocalRepo()->checkRedirect( $title );
 
 			if ( $redir ) {
-				return self::linkKnown( $title, $encLabel, [], wfCgiToArray( $query ) );
+				// We already know it's a redirect, so mark it
+				// accordingly
+				return self::link(
+					$title,
+					$encLabel,
+					[ 'class' => 'mw-redirect' ],
+					wfCgiToArray( $query ),
+					[ 'known', 'noclasses' ]
+				);
 			}
 
 			$href = self::getUploadUrl( $title, $query );
@@ -950,7 +817,7 @@ class Linker {
 				$encLabel . '</a>';
 		}
 
-		return self::linkKnown( $title, $encLabel, [], wfCgiToArray( $query ) );
+		return self::link( $title, $encLabel, [], wfCgiToArray( $query ), [ 'known', 'noclasses' ] );
 	}
 
 	/**
@@ -1126,9 +993,10 @@ class Linker {
 			$page = Title::makeTitle( NS_USER, $userName );
 		}
 
+		// Wrap the output with <bdi> tags for directionality isolation
 		return self::link(
 			$page,
-			htmlspecialchars( $altUserName !== false ? $altUserName : $userName ),
+			'<bdi>' . htmlspecialchars( $altUserName !== false ? $altUserName : $userName ) . '</bdi>',
 			[ 'class' => $classes ]
 		);
 	}
@@ -1449,10 +1317,10 @@ class Linker {
 				:? # ignore optional leading colon
 				([^\]|]+) # 1. link target; page names cannot include ] or |
 				(?:\|
-					# 2. a pipe-separated substring; only the last is captured
-					# Stop matching at | and ]] without relying on backtracking.
-					((?:]?[^\]|])*+)
-				)*
+					# 2. link text
+					# Stop matching at ]] without relying on backtracking.
+					((?:]?[^\]])*+)
+				)?
 				\]\]
 				([^[]*) # 3. link trail (the text up until the next link)
 			/x',
@@ -1887,7 +1755,7 @@ class Linker {
 	 * work if $wgShowRollbackEditCount is disabled, so this can only function
 	 * as an additional check.
 	 *
-	 * If the option noBrackets is set the rollback link wont be enclosed in []
+	 * If the option noBrackets is set the rollback link wont be enclosed in "[]".
 	 *
 	 * @since 1.16.3. $context added in 1.20. $options added in 1.21
 	 *
@@ -1942,7 +1810,7 @@ class Linker {
 			return null;
 		}
 
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 
 		// Up to the value of $wgShowRollbackEditCount revisions are counted
 		$res = $dbr->select(
@@ -2011,11 +1879,14 @@ class Linker {
 		$query = [
 			'action' => 'rollback',
 			'from' => $rev->getUserText(),
-			'token' => $context->getUser()->getEditToken( [
-				$title->getPrefixedText(),
-				$rev->getUserText()
-			] ),
+			'token' => $context->getUser()->getEditToken( 'rollback' ),
 		];
+		$attrs = [
+			'data-mw' => 'interface',
+			'title' => $context->msg( 'tooltip-rollback' )->text(),
+		];
+		$options = [ 'known', 'noclasses' ];
+
 		if ( $context->getRequest()->getBool( 'bot' ) ) {
 			$query['bot'] = '1';
 			$query['hidediff'] = '1'; // bug 15999
@@ -2040,31 +1911,22 @@ class Linker {
 			}
 
 			if ( $editCount > $wgShowRollbackEditCount ) {
-				$editCount_output = $context->msg( 'rollbacklinkcount-morethan' )
+				$html = $context->msg( 'rollbacklinkcount-morethan' )
 					->numParams( $wgShowRollbackEditCount )->parse();
 			} else {
-				$editCount_output = $context->msg( 'rollbacklinkcount' )->numParams( $editCount )->parse();
+				$html = $context->msg( 'rollbacklinkcount' )->numParams( $editCount )->parse();
 			}
 
-			return self::link(
-				$title,
-				$editCount_output,
-				[ 'title' => $context->msg( 'tooltip-rollback' )->text() ],
-				$query,
-				[ 'known', 'noclasses' ]
-			);
+			return self::link( $title, $html, $attrs, $query, $options );
 		} else {
-			return self::link(
-				$title,
-				$context->msg( 'rollbacklink' )->escaped(),
-				[ 'title' => $context->msg( 'tooltip-rollback' )->text() ],
-				$query,
-				[ 'known', 'noclasses' ]
-			);
+			$html = $context->msg( 'rollbacklink' )->escaped();
+			return self::link( $title, $html, $attrs, $query, $options );
 		}
 	}
 
 	/**
+	 * @deprecated since 1.28, use TemplatesOnThisPageFormatter directly
+	 *
 	 * Returns HTML for the "templates used on this page" list.
 	 *
 	 * Make an HTML list of templates, and then add a "More..." link at
@@ -2083,87 +1945,24 @@ class Linker {
 	public static function formatTemplates( $templates, $preview = false,
 		$section = false, $more = null
 	) {
-		global $wgLang;
+		wfDeprecated( __METHOD__, '1.28' );
 
-		$outText = '';
-		if ( count( $templates ) > 0 ) {
-			# Do a batch existence check
-			$batch = new LinkBatch;
-			foreach ( $templates as $title ) {
-				$batch->addObj( $title );
-			}
-			$batch->execute();
-
-			# Construct the HTML
-			$outText = '<div class="mw-templatesUsedExplanation">';
-			if ( $preview ) {
-				$outText .= wfMessage( 'templatesusedpreview' )->numParams( count( $templates ) )
-					->parseAsBlock();
-			} elseif ( $section ) {
-				$outText .= wfMessage( 'templatesusedsection' )->numParams( count( $templates ) )
-					->parseAsBlock();
-			} else {
-				$outText .= wfMessage( 'templatesused' )->numParams( count( $templates ) )
-					->parseAsBlock();
-			}
-			$outText .= "</div><ul>\n";
-
-			usort( $templates, 'Title::compare' );
-			foreach ( $templates as $titleObj ) {
-				$protected = '';
-				$restrictions = $titleObj->getRestrictions( 'edit' );
-				if ( $restrictions ) {
-					// Check backwards-compatible messages
-					$msg = null;
-					if ( $restrictions === [ 'sysop' ] ) {
-						$msg = wfMessage( 'template-protected' );
-					} elseif ( $restrictions === [ 'autoconfirmed' ] ) {
-						$msg = wfMessage( 'template-semiprotected' );
-					}
-					if ( $msg && !$msg->isDisabled() ) {
-						$protected = $msg->parse();
-					} else {
-						// Construct the message from restriction-level-*
-						// e.g. restriction-level-sysop, restriction-level-autoconfirmed
-						$msgs = [];
-						foreach ( $restrictions as $r ) {
-							$msgs[] = wfMessage( "restriction-level-$r" )->parse();
-						}
-						$protected = wfMessage( 'parentheses' )
-							->rawParams( $wgLang->commaList( $msgs ) )->escaped();
-					}
-				}
-				if ( $titleObj->quickUserCan( 'edit' ) ) {
-					$editLink = self::link(
-						$titleObj,
-						wfMessage( 'editlink' )->escaped(),
-						[],
-						[ 'action' => 'edit' ]
-					);
-				} else {
-					$editLink = self::link(
-						$titleObj,
-						wfMessage( 'viewsourcelink' )->escaped(),
-						[],
-						[ 'action' => 'edit' ]
-					);
-				}
-				$outText .= '<li>' . self::link( $titleObj )
-					. wfMessage( 'word-separator' )->escaped()
-					. wfMessage( 'parentheses' )->rawParams( $editLink )->escaped()
-					. wfMessage( 'word-separator' )->escaped()
-					. $protected . '</li>';
-			}
-
-			if ( $more instanceof Title ) {
-				$outText .= '<li>' . self::link( $more, wfMessage( 'moredotdotdot' ) ) . '</li>';
-			} elseif ( $more ) {
-				$outText .= "<li>$more</li>";
-			}
-
-			$outText .= '</ul>';
+		$type = false;
+		if ( $preview ) {
+			$type = 'preview';
+		} elseif ( $section ) {
+			$type = 'section';
 		}
-		return $outText;
+
+		if ( $more instanceof Message ) {
+			$more = $more->toString();
+		}
+
+		$formatter = new TemplatesOnThisPageFormatter(
+			RequestContext::getMain(),
+			MediaWikiServices::getInstance()->getLinkRenderer()
+		);
+		return $formatter->format( $templates, $type, $more );
 	}
 
 	/**
@@ -2195,6 +1994,8 @@ class Linker {
 	}
 
 	/**
+	 * @deprecated since 1.28, use Language::formatSize() directly
+	 *
 	 * Format a size in bytes for output, using an appropriate
 	 * unit (B, KB, MB or GB) according to the magnitude in question
 	 *
@@ -2203,6 +2004,8 @@ class Linker {
 	 * @return string
 	 */
 	public static function formatSize( $size ) {
+		wfDeprecated( __METHOD__, '1.28' );
+
 		global $wgLang;
 		return htmlspecialchars( $wgLang->formatSize( $size ) );
 	}

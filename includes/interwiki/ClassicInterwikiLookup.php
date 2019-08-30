@@ -37,7 +37,7 @@ use WANObjectCache;
  * and tree storage backends (SQL, CDB, and plain PHP arrays).
  *
  * All information is loaded on creation when called by $this->fetch( $prefix ).
- * All work is done on slave, because this should *never* change (except during
+ * All work is done on replica DB, because this should *never* change (except during
  * schema updates etc, which aren't wiki-related)
  *
  * @since 1.28
@@ -282,7 +282,7 @@ class ClassicInterwikiLookup implements InterwikiLookup {
 			$this->objectCache->makeKey( 'interwiki', $prefix ),
 			$this->objectCacheExpiry,
 			function ( $oldValue, &$ttl, array &$setOpts ) use ( $prefix ) {
-				$dbr = wfGetDB( DB_SLAVE ); // TODO: inject LoadBalancer
+				$dbr = wfGetDB( DB_REPLICA ); // TODO: inject LoadBalancer
 
 				$setOpts += Database::getCacheSetOptions( $dbr );
 
@@ -395,7 +395,7 @@ class ClassicInterwikiLookup implements InterwikiLookup {
 	 * @return array[] Interwiki rows
 	 */
 	private function getAllPrefixesDB( $local ) {
-		$db = wfGetDB( DB_SLAVE ); // TODO: inject DB LoadBalancer
+		$db = wfGetDB( DB_REPLICA ); // TODO: inject DB LoadBalancer
 
 		$where = [];
 

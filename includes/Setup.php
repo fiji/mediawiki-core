@@ -45,6 +45,8 @@ if ( !isset( $wgVersion ) ) {
 	die( 1 );
 }
 
+mb_internal_encoding( 'UTF-8' );
+
 // Set various default paths sensibly...
 $ps_default = Profiler::instance()->scopedProfileIn( $fname . '-defaults' );
 
@@ -450,22 +452,6 @@ if ( $wgProfileOnly ) {
 	$wgDebugLogFile = '';
 }
 
-// Disable AuthManager API modules if $wgDisableAuthManager
-if ( $wgDisableAuthManager ) {
-	$wgAPIModules += [
-		'clientlogin' => 'ApiDisabled',
-		'createaccount' => 'ApiCreateAccount', // Use the non-AuthManager version
-		'linkaccount' => 'ApiDisabled',
-		'unlinkaccount' => 'ApiDisabled',
-		'changeauthenticationdata' => 'ApiDisabled',
-		'removeauthenticationdata' => 'ApiDisabled',
-		'resetpassword' => 'ApiDisabled',
-	];
-	$wgAPIMetaModules += [
-		'authmanagerinfo' => 'ApiQueryDisabled',
-	];
-}
-
 // Backwards compatibility with old password limits
 if ( $wgMinimalPasswordLength !== false ) {
 	$wgPasswordPolicy['policies']['default']['MinimalPasswordLength'] = $wgMinimalPasswordLength;
@@ -518,6 +504,20 @@ if ( !class_exists( 'AutoLoader' ) ) {
 // Reset the global service locator, so any services that have already been created will be
 // re-created while taking into account any custom settings and extensions.
 MediaWikiServices::resetGlobalInstance( new GlobalVarConfig(), 'quick' );
+
+if ( $wgSharedDB && $wgSharedTables ) {
+	// Apply $wgSharedDB table aliases for the local LB (all non-foreign DB connections)
+	MediaWikiServices::getInstance()->getDBLoadBalancer()->setTableAliases(
+		array_fill_keys(
+			$wgSharedTables,
+			[
+				'dbname' => $wgSharedDB,
+				'schema' => $wgSharedSchema,
+				'prefix' => $wgSharedPrefix
+			]
+		)
+	);
+}
 
 // Define a constant that indicates that the bootstrapping of the service locator
 // is complete.
@@ -652,6 +652,9 @@ date_default_timezone_set( $wgLocaltimezone );
 if ( is_null( $wgLocalTZoffset ) ) {
 	$wgLocalTZoffset = date( 'Z' ) / 60;
 }
+// The part after the System| is ignored, but rest of MW fills it
+// out as the local offset.
+$wgDefaultUserOptions['timecorrection'] = "System|$wgLocalTZoffset";
 
 if ( !$wgDBerrorLogTZ ) {
 	$wgDBerrorLogTZ = $wgLocaltimezone;
@@ -659,6 +662,12 @@ if ( !$wgDBerrorLogTZ ) {
 
 // initialize the request object in $wgRequest
 $wgRequest = RequestContext::getMain()->getRequest(); // BackCompat
+// Set user IP/agent information for causal consistency purposes
+MediaWikiServices::getInstance()->getDBLoadBalancerFactory()->setRequestInfo( [
+	'IPAddress' => $wgRequest->getIP(),
+	'UserAgent' => $wgRequest->getHeader( 'User-Agent' ),
+	'ChronologyProtection' => $wgRequest->getHeader( 'ChronologyProtection' )
+] );
 
 // Useful debug output
 if ( $wgCommandLineMode ) {
@@ -685,10 +694,12 @@ $parserMemc = wfGetParserCacheStorage();
 
 wfDebugLog( 'caches',
 	'cluster: ' . get_class( $wgMemc ) .
-	', WAN: ' . $wgMainWANCache .
+	', WAN: ' . ( $wgMainWANCache === CACHE_NONE ? 'CACHE_NONE' : $wgMainWANCache ) .
 	', stash: ' . $wgMainStash .
 	', message: ' . get_class( $messageMemc ) .
-	', parser: ' . get_class( $parserMemc ) );
+	', parser: ' . get_class( $parserMemc ) .
+	', session: ' . get_class( ObjectCache::getInstance( $wgSessionCacheType ) )
+);
 
 Profiler::instance()->scopedProfileOut( $ps_memcached );
 
@@ -701,19 +712,16 @@ $ps_globals = Profiler::instance()->scopedProfileIn( $fname . '-globals' );
  * @var Language $wgContLang
  */
 $wgContLang = Language::factory( $wgLanguageCode );
-$wgContLang->initEncoding();
 $wgContLang->initContLang();
 
 // Now that variant lists may be available...
 $wgRequest->interpolateTitle();
 
 if ( !is_object( $wgAuth ) ) {
-	$wgAuth = $wgDisableAuthManager ? new AuthPlugin : new MediaWiki\Auth\AuthManagerAuthPlugin;
+	$wgAuth = new MediaWiki\Auth\AuthManagerAuthPlugin;
 	Hooks::run( 'AuthPluginSetup', [ &$wgAuth ] );
 }
-if ( !$wgDisableAuthManager &&
-	$wgAuth && !$wgAuth instanceof MediaWiki\Auth\AuthManagerAuthPlugin
-) {
+if ( $wgAuth && !$wgAuth instanceof MediaWiki\Auth\AuthManagerAuthPlugin ) {
 	MediaWiki\Auth\AuthManager::singleton()->forcePrimaryAuthenticationProviders( [
 		new MediaWiki\Auth\TemporaryPasswordPrimaryAuthenticationProvider( [
 			'authoritative' => false,
@@ -849,18 +857,23 @@ if ( !defined( 'MW_NO_SESSION' ) && !$wgCommandLineMode ) {
 	$sessionUser = MediaWiki\Session\SessionManager::getGlobalSession()->getUser();
 	if ( $sessionUser->getId() === 0 && User::isValidUserName( $sessionUser->getName() ) ) {
 		$ps_autocreate = Profiler::instance()->scopedProfileIn( $fname . '-autocreate' );
-		if ( $wgDisableAuthManager ) {
-			MediaWiki\Session\SessionManager::autoCreateUser( $sessionUser );
-		} else {
-			MediaWiki\Auth\AuthManager::singleton()->autoCreateUser(
-				$sessionUser,
-				MediaWiki\Auth\AuthManager::AUTOCREATE_SOURCE_SESSSION,
-				true
-			);
-		}
+		$res = MediaWiki\Auth\AuthManager::singleton()->autoCreateUser(
+			$sessionUser,
+			MediaWiki\Auth\AuthManager::AUTOCREATE_SOURCE_SESSION,
+			true
+		);
 		Profiler::instance()->scopedProfileOut( $ps_autocreate );
+		\MediaWiki\Logger\LoggerFactory::getInstance( 'authevents' )->info( 'Autocreation attempt', [
+			'event' => 'autocreate',
+			'status' => $res,
+		] );
+		unset( $res );
 	}
 	unset( $sessionUser );
+}
+
+if ( !$wgCommandLineMode ) {
+	Pingback::schedulePingback();
 }
 
 wfDebug( "Fully initialised\n" );

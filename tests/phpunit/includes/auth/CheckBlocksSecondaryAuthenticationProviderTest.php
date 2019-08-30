@@ -8,15 +8,6 @@ namespace MediaWiki\Auth;
  * @covers MediaWiki\Auth\CheckBlocksSecondaryAuthenticationProvider
  */
 class CheckBlocksSecondaryAuthenticationProviderTest extends \MediaWikiTestCase {
-	protected function setUp() {
-		global $wgDisableAuthManager;
-
-		parent::setUp();
-		if ( $wgDisableAuthManager ) {
-			$this->markTestSkipped( '$wgDisableAuthManager is set' );
-		}
-	}
-
 	public function testConstructor() {
 		$provider = new CheckBlocksSecondaryAuthenticationProvider();
 		$providerPriv = \TestingAccessWrapper::newFromObject( $provider );
@@ -161,7 +152,7 @@ class CheckBlocksSecondaryAuthenticationProviderTest extends \MediaWikiTestCase 
 		];
 		$block = new \Block( $blockOptions );
 		$block->insert();
-		$scopeVariable = new \ScopedCallback( [ $block, 'delete' ] );
+		$scopeVariable = new \Wikimedia\ScopedCallback( [ $block, 'delete' ] );
 
 		$user = \User::newFromName( 'UTNormalUser' );
 		if ( $user->getID() == 0 ) {

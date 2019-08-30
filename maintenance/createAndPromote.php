@@ -120,7 +120,14 @@ class CreateAndPromote extends Maintenance {
 		if ( $password ) {
 			# Try to set the password
 			try {
-				$user->setPassword( $password );
+				$status = $user->changeAuthenticationData( [
+					'username' => $user->getName(),
+					'password' => $password,
+					'retype' => $password,
+				] );
+				if ( !$status->isGood() ) {
+					throw new PasswordError( $status->getWikiText( null, null, 'en' ) );
+				}
 				if ( $exists ) {
 					$this->output( "Password set.\n" );
 					$user->saveSettings();

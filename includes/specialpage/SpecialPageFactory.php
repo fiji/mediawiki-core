@@ -21,6 +21,7 @@
  * @ingroup SpecialPage
  * @defgroup SpecialPage SpecialPage
  */
+use MediaWiki\Linker\LinkRenderer;
 
 /**
  * Factory for handling the special page list and generating SpecialPage objects.
@@ -83,8 +84,8 @@ class SpecialPageFactory {
 
 		// Authentication
 		'Userlogin' => 'SpecialUserLogin',
-		'Userlogout' => 'SpecialUserlogoutPreAuthManager',
-		'CreateAccount' => 'SpecialCreateAccountPreAuthManager',
+		'Userlogout' => 'SpecialUserLogout',
+		'CreateAccount' => 'SpecialCreateAccount',
 		'LinkAccounts' => 'SpecialLinkAccounts',
 		'UnlinkAccounts' => 'SpecialUnlinkAccounts',
 		'ChangeCredentials' => 'SpecialChangeCredentials',
@@ -95,9 +96,9 @@ class SpecialPageFactory {
 		'Block' => 'SpecialBlock',
 		'Unblock' => 'SpecialUnblock',
 		'BlockList' => 'SpecialBlockList',
-		'ChangePassword' => 'SpecialChangePasswordPreAuthManager',
+		'ChangePassword' => 'SpecialChangePassword',
 		'BotPasswords' => 'SpecialBotPasswords',
-		'PasswordReset' => 'SpecialPasswordResetPreAuthManager',
+		'PasswordReset' => 'SpecialPasswordReset',
 		'DeletedContributions' => 'DeletedContributionsPage',
 		'Preferences' => 'SpecialPreferences',
 		'ResetTokens' => 'SpecialResetTokens',
@@ -187,7 +188,6 @@ class SpecialPageFactory {
 
 	private static $list;
 	private static $aliases;
-	private static $pageObjectCache = [];
 
 	/**
 	 * Reset the internal list of special pages. Useful when changing $wgSpecialPages after
@@ -196,7 +196,6 @@ class SpecialPageFactory {
 	public static function resetList() {
 		self::$list = null;
 		self::$aliases = null;
-		self::$pageObjectCache = [];
 	}
 
 	/**
@@ -230,7 +229,6 @@ class SpecialPageFactory {
 		global $wgDisableInternalSearch, $wgEmailAuthentication;
 		global $wgEnableEmail, $wgEnableJavaScriptTest;
 		global $wgPageLanguageUseDB, $wgContentHandlerUseDB;
-		global $wgDisableAuthManager;
 
 		if ( !is_array( self::$list ) ) {
 
@@ -246,7 +244,7 @@ class SpecialPageFactory {
 			}
 
 			if ( $wgEnableEmail ) {
-				self::$list['ChangeEmail'] = 'SpecialChangeEmailPreAuthManager';
+				self::$list['ChangeEmail'] = 'SpecialChangeEmail';
 			}
 
 			if ( $wgEnableJavaScriptTest ) {
@@ -258,20 +256,6 @@ class SpecialPageFactory {
 			}
 			if ( $wgContentHandlerUseDB ) {
 				self::$list['ChangeContentModel'] = 'SpecialChangeContentModel';
-			}
-
-			// horrible hack to allow selection between old and new classes via a feature flag - T110756
-			// will be removed once AuthManager is stable
-			if ( !$wgDisableAuthManager ) {
-				self::$list = array_map( function ( $class ) {
-					return preg_replace( '/PreAuthManager$/', '', $class );
-				}, self::$list );
-				self::$list['Userlogout'] = 'SpecialUserLogout'; // case matters
-			} else {
-				self::$list['Userlogin'] = 'LoginForm';
-				self::$list = array_diff_key( self::$list, array_fill_keys( [
-					'LinkAccounts', 'UnlinkAccounts', 'ChangeCredentials', 'RemoveCredentials',
-				], true ) );
 			}
 
 			// Add extension special pages
@@ -393,10 +377,6 @@ class SpecialPageFactory {
 	public static function getPage( $name ) {
 		list( $realName, /*...*/ ) = self::resolveAlias( $name );
 
-		if ( isset( self::$pageObjectCache[$realName] ) ) {
-			return self::$pageObjectCache[$realName];
-		}
-
 		$specialPageList = self::getPageList();
 
 		if ( isset( $specialPageList[$realName] ) ) {
@@ -424,7 +404,6 @@ class SpecialPageFactory {
 				$page = null;
 			}
 
-			self::$pageObjectCache[$realName] = $page;
 			if ( $page instanceof SpecialPage ) {
 				return $page;
 			} else {
@@ -523,10 +502,13 @@ class SpecialPageFactory {
 	 * @param Title $title
 	 * @param IContextSource $context
 	 * @param bool $including Bool output is being captured for use in {{special:whatever}}
+	 * @param LinkRenderer|null $linkRenderer (since 1.28)
 	 *
 	 * @return bool
 	 */
-	public static function executePath( Title &$title, IContextSource &$context, $including = false ) {
+	public static function executePath( Title &$title, IContextSource &$context, $including = false,
+		LinkRenderer $linkRenderer = null
+	) {
 		// @todo FIXME: Redirects broken due to this call
 		$bits = explode( '/', $title->getDBkey(), 2 );
 		$name = $bits[0];
@@ -586,6 +568,9 @@ class SpecialPageFactory {
 		}
 
 		$page->including( $including );
+		if ( $linkRenderer ) {
+			$page->setLinkRenderer( $linkRenderer );
+		}
 
 		// Execute special page
 		$page->run( $par );
@@ -605,9 +590,12 @@ class SpecialPageFactory {
 	 *
 	 * @param Title $title
 	 * @param IContextSource $context
+	 * @param LinkRenderer|null $linkRenderer (since 1.28)
 	 * @return string HTML fragment
 	 */
-	public static function capturePath( Title $title, IContextSource $context ) {
+	public static function capturePath(
+		Title $title, IContextSource $context, LinkRenderer $linkRenderer = null
+	) {
 		global $wgTitle, $wgOut, $wgRequest, $wgUser, $wgLang;
 		$main = RequestContext::getMain();
 
@@ -640,7 +628,7 @@ class SpecialPageFactory {
 		$main->setLanguage( $context->getLanguage() );
 
 		// The useful part
-		$ret = self::executePath( $title, $context, true );
+		$ret = self::executePath( $title, $context, true, $linkRenderer );
 
 		// Restore old globals and context
 		$wgTitle = $glob['title'];
@@ -704,6 +692,8 @@ class SpecialPageFactory {
 		}
 
 		if ( $subpage !== false && !is_null( $subpage ) ) {
+			// Make sure it's in dbkey form
+			$subpage = str_replace( ' ', '_', $subpage );
 			$name = "$name/$subpage";
 		}
 

@@ -3,6 +3,8 @@ namespace MediaWiki;
 
 use Config;
 use ConfigFactory;
+use CryptHKDF;
+use CryptRand;
 use EventRelayerGroup;
 use GenderCache;
 use GlobalVarConfig;
@@ -11,20 +13,27 @@ use LBFactory;
 use LinkCache;
 use Liuggio\StatsdClient\Factory\StatsdDataFactory;
 use LoadBalancer;
+use MediaHandlerFactory;
+use MediaWiki\Linker\LinkRenderer;
+use MediaWiki\Linker\LinkRendererFactory;
 use MediaWiki\Services\SalvageableService;
 use MediaWiki\Services\ServiceContainer;
+use MediaWiki\Services\NoSuchServiceException;
 use MWException;
+use MimeAnalyzer;
 use ObjectCache;
-use ResourceLoader;
+use ProxyLookup;
 use SearchEngine;
 use SearchEngineConfig;
 use SearchEngineFactory;
 use SiteLookup;
 use SiteStore;
 use WatchedItemStore;
+use WatchedItemQueryService;
 use SkinFactory;
 use TitleFormatter;
 use TitleParser;
+use VirtualRESTServiceClient;
 use MediaWiki\Interwiki\InterwikiLookup;
 
 /**
@@ -174,7 +183,7 @@ class MediaWikiServices extends ServiceContainer {
 
 		$oldInstance = self::$instance;
 
-		self::$instance = self::newInstance( $bootstrapConfig );
+		self::$instance = self::newInstance( $bootstrapConfig, 'load' );
 		self::$instance->importWiring( $oldInstance, [ 'BootstrapConfig' ] );
 
 		if ( $quick === 'quick' ) {
@@ -194,7 +203,14 @@ class MediaWikiServices extends ServiceContainer {
 	 */
 	private function salvage( self $other ) {
 		foreach ( $this->getServiceNames() as $name ) {
-			$oldService = $other->peekService( $name );
+			// The service could be new in the new instance and not registered in the
+			// other instance (e.g. an extension that was loaded after the instantiation of
+			// the other instance. Skip this service in this case. See T143974
+			try {
+				$oldService = $other->peekService( $name );
+			} catch ( NoSuchServiceException $e ) {
+				continue;
+			}
 
 			if ( $oldService instanceof SalvageableService ) {
 				/** @var SalvageableService $newService */
@@ -503,6 +519,54 @@ class MediaWikiServices extends ServiceContainer {
 
 	/**
 	 * @since 1.28
+	 * @return WatchedItemQueryService
+	 */
+	public function getWatchedItemQueryService() {
+		return $this->getService( 'WatchedItemQueryService' );
+	}
+
+	/**
+	 * @since 1.28
+	 * @return CryptRand
+	 */
+	public function getCryptRand() {
+		return $this->getService( 'CryptRand' );
+	}
+
+	/**
+	 * @since 1.28
+	 * @return CryptHKDF
+	 */
+	public function getCryptHKDF() {
+		return $this->getService( 'CryptHKDF' );
+	}
+
+	/**
+	 * @since 1.28
+	 * @return MediaHandlerFactory
+	 */
+	public function getMediaHandlerFactory() {
+		return $this->getService( 'MediaHandlerFactory' );
+	}
+
+	/**
+	 * @since 1.28
+	 * @return MimeAnalyzer
+	 */
+	public function getMimeAnalyzer() {
+		return $this->getService( 'MimeAnalyzer' );
+	}
+
+	/**
+	 * @since 1.28
+	 * @return ProxyLookup
+	 */
+	public function getProxyLookup() {
+		return $this->getService( 'ProxyLookup' );
+	}
+
+	/**
+	 * @since 1.28
 	 * @return GenderCache
 	 */
 	public function getGenderCache() {
@@ -519,6 +583,25 @@ class MediaWikiServices extends ServiceContainer {
 
 	/**
 	 * @since 1.28
+	 * @return LinkRendererFactory
+	 */
+	public function getLinkRendererFactory() {
+		return $this->getService( 'LinkRendererFactory' );
+	}
+
+	/**
+	 * LinkRenderer instance that can be used
+	 * if no custom options are needed
+	 *
+	 * @since 1.28
+	 * @return LinkRenderer
+	 */
+	public function getLinkRenderer() {
+		return $this->getService( 'LinkRenderer' );
+	}
+
+	/**
+	 * @since 1.28
 	 * @return TitleFormatter
 	 */
 	public function getTitleFormatter() {
@@ -531,6 +614,38 @@ class MediaWikiServices extends ServiceContainer {
 	 */
 	public function getTitleParser() {
 		return $this->getService( 'TitleParser' );
+	}
+
+	/**
+	 * @since 1.28
+	 * @return \BagOStuff
+	 */
+	public function getMainObjectStash() {
+		return $this->getService( 'MainObjectStash' );
+	}
+
+	/**
+	 * @since 1.28
+	 * @return \WANObjectCache
+	 */
+	public function getMainWANObjectCache() {
+		return $this->getService( 'MainWANObjectCache' );
+	}
+
+	/**
+	 * @since 1.28
+	 * @return \BagOStuff
+	 */
+	public function getLocalServerObjectCache() {
+		return $this->getService( 'LocalServerObjectCache' );
+	}
+
+	/**
+	 * @since 1.28
+	 * @return VirtualRESTServiceClient
+	 */
+	public function getVirtualRESTServiceClient() {
+		return $this->getService( 'VirtualRESTServiceClient' );
 	}
 
 	///////////////////////////////////////////////////////////////////////////

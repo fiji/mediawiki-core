@@ -120,7 +120,7 @@
  *
  * @code
  *     // old style:
- *     wfMsgExt( 'key', array( 'parseinline' ), 'apple' );
+ *     wfMsgExt( 'key', [ 'parseinline' ], 'apple' );
  *     // new style:
  *     wfMessage( 'key', 'apple' )->parse();
  * @endcode
@@ -131,7 +131,7 @@
  * Places where HTML cannot be used. {{-transformation is done.
  * @code
  *     // old style:
- *     wfMsgExt( 'key', array( 'parsemag' ), 'apple', 'pear' );
+ *     wfMsgExt( 'key', [ 'parsemag' ], 'apple', 'pear' );
  *     // new style:
  *     wfMessage( 'key', 'apple', 'pear' )->text();
  * @endcode
@@ -384,22 +384,30 @@ class Message implements MessageSpecifier, Serializable {
 
 	/**
 	 * Transform a MessageSpecifier or a primitive value used interchangeably with
-	 * specifiers (a message key string, or a key + params array) into a proper Message
+	 * specifiers (a message key string, or a key + params array) into a proper Message.
+	 *
+	 * Also accepts a MessageSpecifier inside an array: that's not considered a valid format
+	 * but is an easy error to make due to how StatusValue stores messages internally.
+	 * Further array elements are ignored in that case.
+	 *
 	 * @param string|array|MessageSpecifier $value
 	 * @return Message
 	 * @throws InvalidArgumentException
 	 * @since 1.27
 	 */
 	public static function newFromSpecifier( $value ) {
-		if ( $value instanceof RawMessage ) {
-			$message = new RawMessage( $value->getKey(), $value->getParams() );
+		$params = [];
+		if ( is_array( $value ) ) {
+			$params = $value;
+			$value = array_shift( $params );
+		}
+
+		if ( $value instanceof Message ) { // Message, RawMessage, ApiMessage, etc
+			$message = clone( $value );
 		} elseif ( $value instanceof MessageSpecifier ) {
 			$message = new Message( $value );
-		} elseif ( is_array( $value ) ) {
-			$key = array_shift( $value );
-			$message = new Message( $key, $value );
 		} elseif ( is_string( $value ) ) {
-			$message = new Message( $value );
+			$message = new Message( $value, $params );
 		} else {
 			throw new InvalidArgumentException( __METHOD__ . ': invalid argument type '
 				. gettype( $value ) );
@@ -447,12 +455,12 @@ class Message implements MessageSpecifier, Serializable {
 	public function getTitle() {
 		global $wgContLang, $wgForceUIMsgAsContentMsg;
 
-		$code = $this->getLanguage()->getCode();
 		$title = $this->key;
 		if (
-			$wgContLang->getCode() !== $code
+			!$this->language->equals( $wgContLang )
 			&& in_array( $this->key, (array)$wgForceUIMsgAsContentMsg )
 		) {
+			$code = $this->language->getCode();
 			$title .= '/' . $code;
 		}
 
@@ -794,10 +802,13 @@ class Message implements MessageSpecifier, Serializable {
 		$string = $this->fetchMessage();
 
 		if ( $string === false ) {
-			if ( $this->format === 'plain' || $this->format === 'text' ) {
-				return '<' . $this->key . '>';
-			}
-			return '&lt;' . htmlspecialchars( $this->key ) . '&gt;';
+			// Err on the side of safety, ensure that the output
+			// is always html safe in the event the message key is
+			// missing, since in that case its highly likely the
+			// message key is user-controlled.
+			// '⧼' is used instead of '<' to side-step any
+			// double-escaping issues.
+			return '⧼' . htmlspecialchars( $this->key ) . '⧽';
 		}
 
 		# Replace $* with a list of parameters for &uselang=qqx.
@@ -841,6 +852,12 @@ class Message implements MessageSpecifier, Serializable {
 	 * @return string
 	 */
 	public function __toString() {
+		if ( $this->format !== 'parse' ) {
+			$ex = new LogicException( __METHOD__ . ' using implicit format: ' . $this->format );
+			\MediaWiki\Logger\LoggerFactory::getInstance( 'message-format' )->warning(
+				$ex->getMessage(), [ 'exception' => $ex, 'format' => $this->format, 'key' => $this->key ] );
+		}
+
 		// PHP doesn't allow __toString to throw exceptions and will
 		// trigger a fatal error if it does. So, catch any exceptions.
 

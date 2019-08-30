@@ -287,9 +287,9 @@ class LinkHolderArray {
 		$colours = [];
 		$linkCache = LinkCache::singleton();
 		$output = $this->parent->getOutput();
+		$linkRenderer = $this->parent->getLinkRenderer();
 
-		$dbr = wfGetDB( DB_SLAVE );
-		$threshold = $this->parent->getOptions()->getStubThreshold();
+		$dbr = wfGetDB( DB_REPLICA );
 
 		# Sort by namespace
 		ksort( $this->internals );
@@ -320,7 +320,7 @@ class LinkHolderArray {
 				} else {
 					$id = $linkCache->getGoodLinkID( $pdbk );
 					if ( $id != 0 ) {
-						$colours[$pdbk] = Linker::getLinkColour( $title, $threshold );
+						$colours[$pdbk] = $linkRenderer->getLinkClasses( $title );
 						$output->addLink( $title, $id );
 						$linkcolour_ids[$id] = $pdbk;
 					} elseif ( $linkCache->isBadLink( $pdbk ) ) {
@@ -352,10 +352,7 @@ class LinkHolderArray {
 				$pdbk = $title->getPrefixedDBkey();
 				$linkCache->addGoodLinkObjFromRow( $title, $s );
 				$output->addLink( $title, $s->page_id );
-				# @todo FIXME: Convoluted data flow
-				# The redirect status and length is passed to getLinkColour via the LinkCache
-				# Use formal parameters instead
-				$colours[$pdbk] = Linker::getLinkColour( $title, $threshold );
+				$colours[$pdbk] = $linkRenderer->getLinkClasses( $title );
 				// add id to the extension todolist
 				$linkcolour_ids[$s->page_id] = $pdbk;
 			}
@@ -387,6 +384,8 @@ class LinkHolderArray {
 				}
 				if ( $displayText === '' ) {
 					$displayText = null;
+				} else {
+					$displayText = new HtmlArmor( $displayText );
 				}
 				if ( !isset( $colours[$pdbk] ) ) {
 					$colours[$pdbk] = 'new';
@@ -395,15 +394,16 @@ class LinkHolderArray {
 				if ( $colours[$pdbk] == 'new' ) {
 					$linkCache->addBadLinkObj( $title );
 					$output->addLink( $title, 0 );
-					$type = [ 'broken' ];
+					$link = $linkRenderer->makeBrokenLink(
+						$title, $displayText, $attribs, $query
+					);
 				} else {
-					if ( $colours[$pdbk] != '' ) {
-						$attribs['class'] = $colours[$pdbk];
-					}
-					$type = [ 'known', 'noclasses' ];
+					$link = $linkRenderer->makePreloadedLink(
+						$title, $displayText, $colours[$pdbk], $attribs, $query
+					);
 				}
-				$replacePairs[$searchkey] = Linker::link( $title, $displayText,
-						$attribs, $query, $type );
+
+				$replacePairs[$searchkey] = $link;
 			}
 		}
 		$replacer = new HashtableReplacer( $replacePairs, 1 );
@@ -429,11 +429,12 @@ class LinkHolderArray {
 		# Make interwiki link HTML
 		$output = $this->parent->getOutput();
 		$replacePairs = [];
-		$options = [
-			'stubThreshold' => $this->parent->getOptions()->getStubThreshold(),
-		];
+		$linkRenderer = $this->parent->getLinkRenderer();
 		foreach ( $this->interwikis as $key => $link ) {
-			$replacePairs[$key] = Linker::link( $link['title'], $link['text'], [], [], $options );
+			$replacePairs[$key] = $linkRenderer->makeLink(
+				$link['title'],
+				new HtmlArmor( $link['text'] )
+			);
 			$output->addInterwikiLink( $link['title'] );
 		}
 		$replacer = new HashtableReplacer( $replacePairs, 1 );
@@ -454,7 +455,6 @@ class LinkHolderArray {
 		$variantMap = []; // maps $pdbkey_Variant => $keys (of link holders)
 		$output = $this->parent->getOutput();
 		$linkCache = LinkCache::singleton();
-		$threshold = $this->parent->getOptions()->getStubThreshold();
 		$titlesToBeConverted = '';
 		$titlesAttrs = [];
 
@@ -534,7 +534,7 @@ class LinkHolderArray {
 
 		if ( !$linkBatch->isEmpty() ) {
 			// construct query
-			$dbr = wfGetDB( DB_SLAVE );
+			$dbr = wfGetDB( DB_REPLICA );
 			$fields = array_merge(
 				LinkCache::getSelectFields(),
 				[ 'page_namespace', 'page_title' ]
@@ -547,6 +547,7 @@ class LinkHolderArray {
 			);
 
 			$linkcolour_ids = [];
+			$linkRenderer = $this->parent->getLinkRenderer();
 
 			// for each found variants, figure out link holders and replace
 			foreach ( $varRes as $s ) {
@@ -573,10 +574,7 @@ class LinkHolderArray {
 						$entry['pdbk'] = $varPdbk;
 
 						// set pdbk and colour
-						# @todo FIXME: Convoluted data flow
-						# The redirect status and length is passed to getLinkColour via the LinkCache
-						# Use formal parameters instead
-						$colours[$varPdbk] = Linker::getLinkColour( $variantTitle, $threshold );
+						$colours[$varPdbk] = $linkRenderer->getLinkClasses( $variantTitle );
 						$linkcolour_ids[$s->page_id] = $pdbk;
 					}
 				}

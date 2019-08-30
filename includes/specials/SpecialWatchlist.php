@@ -313,7 +313,7 @@ class SpecialWatchlist extends ChangesListSpecialPage {
 	 * @return IDatabase
 	 */
 	protected function getDB() {
-		return wfGetDB( DB_SLAVE, 'watchlist' );
+		return wfGetDB( DB_REPLICA, 'watchlist' );
 	}
 
 	/**
@@ -343,7 +343,7 @@ class SpecialWatchlist extends ChangesListSpecialPage {
 		$user = $this->getUser();
 		$output = $this->getOutput();
 
-		# Show a message about slave lag, if applicable
+		# Show a message about replica DB lag, if applicable
 		$lag = wfGetLB()->safeGetLag( $dbr );
 		if ( $lag > 0 ) {
 			$output->showLagWarning( $lag );
@@ -429,7 +429,10 @@ class SpecialWatchlist extends ChangesListSpecialPage {
 
 		$out->addSubtitle(
 			$this->msg( 'watchlistfor2', $user->getName() )
-				->rawParams( SpecialEditWatchlist::buildTools( null ) )
+				->rawParams( SpecialEditWatchlist::buildTools(
+					$this->getLanguage(),
+					$this->getLinkRenderer()
+				) )
 		);
 
 		$this->setTopText( $opts );
@@ -615,9 +618,10 @@ class SpecialWatchlist extends ChangesListSpecialPage {
 
 		$form .= Xml::openElement( 'form', [
 			'method' => 'get',
-			'action' => $this->getPageTitle()->getLocalURL(),
+			'action' => wfScript(),
 			'id' => 'mw-watchlist-form'
 		] );
+		$form .= Html::hidden( 'title', $this->getPageTitle()->getPrefixedText() );
 		$form .= Xml::fieldset(
 			$this->msg( 'watchlist-options' )->text(),
 			false,

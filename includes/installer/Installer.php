@@ -2,6 +2,9 @@
 /**
  * Base code for MediaWiki installer.
  *
+ * DO NOT PATCH THIS FILE IF YOU NEED TO CHANGE INSTALLER BEHAVIOR IN YOUR PACKAGE!
+ * See mw-config/overrides/README for details.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -118,8 +121,6 @@ abstract class Installer {
 	protected $envChecks = [
 		'envCheckDB',
 		'envCheckBrokenXML',
-		'envCheckMbstring',
-		'envCheckXML',
 		'envCheckPCRE',
 		'envCheckMemory',
 		'envCheckCache',
@@ -133,9 +134,6 @@ abstract class Installer {
 		'envCheckUploadsDirectory',
 		'envCheckLibicu',
 		'envCheckSuhosinMaxValueLength',
-		'envCheckCtype',
-		'envCheckIconv',
-		'envCheckJSON',
 	];
 
 	/**
@@ -182,6 +180,7 @@ abstract class Installer {
 		'wgUseInstantCommons',
 		'wgUpgradeKey',
 		'wgDefaultSkin',
+		'wgPingback',
 	];
 
 	/**
@@ -245,6 +244,7 @@ abstract class Installer {
 	protected $objectCaches = [
 		'xcache' => 'xcache_get',
 		'apc' => 'apc_fetch',
+		'apcu' => 'apcu_fetch',
 		'wincache' => 'wincache_ucache_get'
 	];
 
@@ -294,10 +294,6 @@ abstract class Installer {
 		'cc-0' => [
 			'url' => 'https://creativecommons.org/publicdomain/zero/1.0/',
 			'icon' => '$wgResourceBasePath/resources/assets/licenses/cc-0.png',
-		],
-		'pd' => [
-			'url' => '',
-			'icon' => '$wgResourceBasePath/resources/assets/licenses/public-domain.png',
 		],
 		'gfdl' => [
 			'url' => 'https://www.gnu.org/copyleft/fdl.html',
@@ -789,40 +785,6 @@ abstract class Installer {
 	}
 
 	/**
-	 * Environment check for mbstring.func_overload.
-	 * @return bool
-	 */
-	protected function envCheckMbstring() {
-		if ( wfIniGetBool( 'mbstring.func_overload' ) ) {
-			$this->showError( 'config-mbstring' );
-
-			return false;
-		}
-
-		if ( !function_exists( 'mb_substr' ) ) {
-			$this->showError( 'config-mbstring-absent' );
-
-			return false;
-		}
-
-		return true;
-	}
-
-	/**
-	 * Environment check for the XML module.
-	 * @return bool
-	 */
-	protected function envCheckXML() {
-		if ( !function_exists( "utf8_encode" ) ) {
-			$this->showError( 'config-xml-bad' );
-
-			return false;
-		}
-
-		return true;
-	}
-
-	/**
 	 * Environment check for the PCRE module.
 	 *
 	 * @note If this check were to fail, the parser would
@@ -1175,45 +1137,6 @@ abstract class Installer {
 	}
 
 	/**
-	 * @return bool
-	 */
-	protected function envCheckCtype() {
-		if ( !function_exists( 'ctype_digit' ) ) {
-			$this->showError( 'config-ctype' );
-
-			return false;
-		}
-
-		return true;
-	}
-
-	/**
-	 * @return bool
-	 */
-	protected function envCheckIconv() {
-		if ( !function_exists( 'iconv' ) ) {
-			$this->showError( 'config-iconv' );
-
-			return false;
-		}
-
-		return true;
-	}
-
-	/**
-	 * @return bool
-	 */
-	protected function envCheckJSON() {
-		if ( !function_exists( 'json_decode' ) ) {
-			$this->showError( 'config-json' );
-
-			return false;
-		}
-
-		return true;
-	}
-
-	/**
 	 * Environment prep for the server hostname.
 	 */
 	protected function envPrepServer() {
@@ -1279,7 +1202,7 @@ abstract class Installer {
 			$command = $path . DIRECTORY_SEPARATOR . $name;
 
 			MediaWiki\suppressWarnings();
-			$file_exists = file_exists( $command );
+			$file_exists = is_executable( $command );
 			MediaWiki\restoreWarnings();
 
 			if ( $file_exists ) {
@@ -1515,10 +1438,10 @@ abstract class Installer {
 
 	/**
 	 * Get an array of install steps. Should always be in the format of
-	 * array(
+	 * [
 	 *   'name'     => 'someuniquename',
-	 *   'callback' => array( $obj, 'method' ),
-	 * )
+	 *   'callback' => [ $obj, 'method' ],
+	 * ]
 	 * There must be a config-install-$name message defined per step, which will
 	 * be shown on install.
 	 *
@@ -1802,7 +1725,7 @@ abstract class Installer {
 	 * Add an installation step following the given step.
 	 *
 	 * @param callable $callback A valid installation callback array, in this form:
-	 *    array( 'name' => 'some-unique-name', 'callback' => array( $obj, 'function' ) );
+	 *    [ 'name' => 'some-unique-name', 'callback' => [ $obj, 'function' ] ];
 	 * @param string $findStep The step to find. Omit to put the step at the beginning
 	 */
 	public function addInstallStep( $callback, $findStep = 'BEGINNING' ) {

@@ -1,5 +1,6 @@
 <?php
 use MediaWiki\Linker\LinkTarget;
+use Wikimedia\ScopedCallback;
 
 /**
  * @author Addshore
@@ -28,12 +29,12 @@ class WatchedItemStoreUnitTest extends MediaWikiTestCase {
 			->getMock();
 		if ( $expectedConnectionType !== null ) {
 			$mock->expects( $this->any() )
-				->method( 'getConnection' )
+				->method( 'getConnectionRef' )
 				->with( $expectedConnectionType )
 				->will( $this->returnValue( $mockDb ) );
 		} else {
 			$mock->expects( $this->any() )
-				->method( 'getConnection' )
+				->method( 'getConnectionRef' )
 				->will( $this->returnValue( $mockDb ) );
 		}
 		$mock->expects( $this->any() )
@@ -2444,10 +2445,10 @@ class WatchedItemStoreUnitTest extends MediaWikiTestCase {
 	public function testUpdateNotificationTimestamp_watchersExist() {
 		$mockDb = $this->getMockDb();
 		$mockDb->expects( $this->once() )
-			->method( 'select' )
+			->method( 'selectFieldValues' )
 			->with(
-				[ 'watchlist' ],
-				[ 'wl_user' ],
+				'watchlist',
+				'wl_user',
 				[
 					'wl_user != 1',
 					'wl_namespace' => 0,
@@ -2455,18 +2456,7 @@ class WatchedItemStoreUnitTest extends MediaWikiTestCase {
 					'wl_notificationtimestamp IS NULL'
 				]
 			)
-			->will(
-				$this->returnValue( [
-					$this->getFakeRow( [ 'wl_user' => '2' ] ),
-					$this->getFakeRow( [ 'wl_user' => '3' ] )
-				] )
-			);
-		$mockDb->expects( $this->once() )
-			->method( 'onTransactionIdle' )
-			->with( $this->isType( 'callable' ) )
-			->will( $this->returnCallback( function( $callable ) {
-				$callable();
-			} ) );
+			->will( $this->returnValue( [ '2', '3' ] ) );
 		$mockDb->expects( $this->once() )
 			->method( 'update' )
 			->with(
@@ -2502,10 +2492,10 @@ class WatchedItemStoreUnitTest extends MediaWikiTestCase {
 	public function testUpdateNotificationTimestamp_noWatchers() {
 		$mockDb = $this->getMockDb();
 		$mockDb->expects( $this->once() )
-			->method( 'select' )
+			->method( 'selectFieldValues' )
 			->with(
-				[ 'watchlist' ],
-				[ 'wl_user' ],
+				'watchlist',
+				'wl_user',
 				[
 					'wl_user != 1',
 					'wl_namespace' => 0,
@@ -2516,8 +2506,6 @@ class WatchedItemStoreUnitTest extends MediaWikiTestCase {
 			->will(
 				$this->returnValue( [] )
 			);
-		$mockDb->expects( $this->never() )
-			->method( 'onTransactionIdle' );
 		$mockDb->expects( $this->never() )
 			->method( 'update' );
 
@@ -2551,19 +2539,10 @@ class WatchedItemStoreUnitTest extends MediaWikiTestCase {
 				$this->getFakeRow( [ 'wl_notificationtimestamp' => '20151212010101' ] )
 			) );
 		$mockDb->expects( $this->once() )
-			->method( 'select' )
+			->method( 'selectFieldValues' )
 			->will(
-				$this->returnValue( [
-					$this->getFakeRow( [ 'wl_user' => '2' ] ),
-					$this->getFakeRow( [ 'wl_user' => '3' ] )
-				] )
+				$this->returnValue( [ '2', '3' ] )
 			);
-		$mockDb->expects( $this->once() )
-			->method( 'onTransactionIdle' )
-			->with( $this->isType( 'callable' ) )
-			->will( $this->returnCallback( function( $callable ) {
-				$callable();
-			} ) );
 		$mockDb->expects( $this->once() )
 			->method( 'update' );
 

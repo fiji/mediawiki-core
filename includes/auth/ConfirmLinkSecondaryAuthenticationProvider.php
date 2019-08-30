@@ -2,7 +2,6 @@
 
 namespace MediaWiki\Auth;
 
-use StatusValue;
 use User;
 
 /**
@@ -50,7 +49,14 @@ class ConfirmLinkSecondaryAuthenticationProvider extends AbstractSecondaryAuthen
 		if ( !is_array( $state ) ) {
 			return AuthenticationResponse::newAbstain();
 		}
-		$maybeLink = $state['maybeLink'];
+
+		$maybeLink = array_filter( $state['maybeLink'], function ( $req ) use ( $user ) {
+			if ( !$req->action ) {
+				$req->action = AuthManager::ACTION_CHANGE;
+			}
+			$req->username = $user->getName();
+			return $this->manager->allowsAuthenticationDataChange( $req )->isGood();
+		} );
 		if ( !$maybeLink ) {
 			return AuthenticationResponse::newAbstain();
 		}
@@ -58,7 +64,8 @@ class ConfirmLinkSecondaryAuthenticationProvider extends AbstractSecondaryAuthen
 		$req = new ConfirmLinkAuthenticationRequest( $maybeLink );
 		return AuthenticationResponse::newUI(
 			[ $req ],
-			wfMessage( 'authprovider-confirmlink-message' )
+			wfMessage( 'authprovider-confirmlink-message' ),
+			'warning'
 		);
 	}
 
@@ -134,7 +141,7 @@ class ConfirmLinkSecondaryAuthenticationProvider extends AbstractSecondaryAuthen
 				$combinedStatus->error( wfMessage( 'authprovider-confirmlink-success-line', $description ) );
 			} else {
 				$combinedStatus->error( wfMessage(
-					'authprovider-confirmlink-failure-line', $description, $status->getMessage()->text()
+					'authprovider-confirmlink-failed-line', $description, $status->getMessage()->text()
 				) );
 			}
 		}
@@ -144,7 +151,8 @@ class ConfirmLinkSecondaryAuthenticationProvider extends AbstractSecondaryAuthen
 					'linkOk', wfMessage( 'ok' ), wfMessage( 'authprovider-confirmlink-ok-help' )
 				)
 			],
-			$combinedStatus->getMessage( 'authprovider-confirmlink-failed' )
+			$combinedStatus->getMessage( 'authprovider-confirmlink-failed' ),
+			'error'
 		);
 	}
 }

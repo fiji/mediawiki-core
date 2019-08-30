@@ -1,6 +1,8 @@
 <?php
 use Liuggio\StatsdClient\Factory\StatsdDataFactory;
 use MediaWiki\Interwiki\InterwikiLookup;
+use MediaWiki\Linker\LinkRenderer;
+use MediaWiki\Linker\LinkRendererFactory;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Services\DestructibleService;
 use MediaWiki\Services\SalvageableService;
@@ -145,9 +147,6 @@ class MediaWikiServicesTest extends MediaWikiTestCase {
 			->disableOriginalConstructor()
 			->getMock();
 
-		$lbFactory->expects( $this->once() )
-			->method( 'destroy' );
-
 		$newServices->redefineService(
 			'DBLoadBalancerFactory',
 			function() use ( $lbFactory ) {
@@ -162,12 +161,11 @@ class MediaWikiServicesTest extends MediaWikiTestCase {
 
 		try {
 			MediaWikiServices::getInstance()->getService( 'DBLoadBalancerFactory' );
-			$this->fail( 'DBLoadBalancerFactory shoudl have been disabled' );
+			$this->fail( 'DBLoadBalancerFactory should have been disabled' );
 		}
 		catch ( ServiceDisabledException $ex ) {
 			// ok, as expected
-		}
-		catch ( Throwable $ex ) {
+		} catch ( Throwable $ex ) {
 			$this->fail( 'ServiceDisabledException expected, caught ' . get_class( $ex ) );
 		}
 
@@ -313,11 +311,23 @@ class MediaWikiServicesTest extends MediaWikiTestCase {
 			'DBLoadBalancerFactory' => [ 'DBLoadBalancerFactory', 'LBFactory' ],
 			'DBLoadBalancer' => [ 'DBLoadBalancer', 'LoadBalancer' ],
 			'WatchedItemStore' => [ 'WatchedItemStore', WatchedItemStore::class ],
+			'WatchedItemQueryService' => [ 'WatchedItemQueryService', WatchedItemQueryService::class ],
+			'CryptRand' => [ 'CryptRand', CryptRand::class ],
+			'CryptHKDF' => [ 'CryptHKDF', CryptHKDF::class ],
+			'MediaHandlerFactory' => [ 'MediaHandlerFactory', MediaHandlerFactory::class ],
 			'GenderCache' => [ 'GenderCache', GenderCache::class ],
 			'LinkCache' => [ 'LinkCache', LinkCache::class ],
+			'LinkRenderer' => [ 'LinkRenderer', LinkRenderer::class ],
+			'LinkRendererFactory' => [ 'LinkRendererFactory', LinkRendererFactory::class ],
 			'_MediaWikiTitleCodec' => [ '_MediaWikiTitleCodec', MediaWikiTitleCodec::class ],
+			'MimeAnalyzer' => [ 'MimeAnalyzer', MimeAnalyzer::class ],
 			'TitleFormatter' => [ 'TitleFormatter', TitleFormatter::class ],
 			'TitleParser' => [ 'TitleParser', TitleParser::class ],
+			'ProxyLookup' => [ 'ProxyLookup', ProxyLookup::class ],
+			'MainObjectStash' => [ 'MainObjectStash', BagOStuff::class ],
+			'MainWANObjectCache' => [ 'MainWANObjectCache', WANObjectCache::class ],
+			'LocalServerObjectCache' => [ 'LocalServerObjectCache', BagOStuff::class ],
+			'VirtualRESTServiceClient' => [ 'VirtualRESTServiceClient', VirtualRESTServiceClient::class ]
 		];
 	}
 

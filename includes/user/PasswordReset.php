@@ -153,7 +153,7 @@ class PasswordReset {
 			'Capture' => $displayPassword ? '1' : null,
 		];
 		if ( !Hooks::run( 'SpecialPasswordResetOnSubmit', [ &$users, $data, &$error ] ) ) {
-			return StatusValue::newFatal( wfMessage( $error ) );
+			return StatusValue::newFatal( Message::newFromSpecifier( $error ) );
 		}
 
 		if ( !$users ) {
@@ -236,7 +236,7 @@ class PasswordReset {
 	 * @throws MWException On unexpected database errors
 	 */
 	protected function getUsersByEmail( $email ) {
-		$res = wfGetDB( DB_SLAVE )->select(
+		$res = wfGetDB( DB_REPLICA )->select(
 			'user',
 			User::selectFields(),
 			[ 'user_email' => $email ],

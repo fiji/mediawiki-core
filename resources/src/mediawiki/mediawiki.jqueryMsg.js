@@ -15,6 +15,8 @@
 		slice = Array.prototype.slice,
 		parserDefaults = {
 			magic: {
+				PAGENAME: mw.config.get( 'wgPageName' ),
+				PAGENAMEE: mw.util.wikiUrlencode( mw.config.get( 'wgPageName' ) ),
 				SITENAME: mw.config.get( 'wgSiteName' )
 			},
 			// Whitelist for allowed HTML elements in wikitext.
@@ -1124,11 +1126,18 @@
 			} else {
 				$el = $( '<a>' );
 				if ( typeof arg === 'function' ) {
-					$el.attr( 'href', '#' )
-					.click( function ( e ) {
-						e.preventDefault();
+					$el.attr( {
+						role: 'button',
+						tabindex: 0
 					} )
-					.click( arg );
+					.on( 'click keypress', function ( e ) {
+						if (
+							e.type === 'click' ||
+							e.type === 'keypress' && e.which === 13
+						) {
+							arg.call( this, e );
+						}
+					} );
 				} else {
 					$el.attr( 'href', textify( arg ) );
 				}
@@ -1352,6 +1361,7 @@
 	 *
 	 * This method is only available when jqueryMsg is loaded.
 	 *
+	 * @since 1.27
 	 * @method parseDom
 	 * @member mw.Message
 	 * @return {jQuery}

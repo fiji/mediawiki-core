@@ -7,15 +7,6 @@ namespace MediaWiki\Auth;
  * @covers MediaWiki\Auth\ConfirmLinkSecondaryAuthenticationProvider
  */
 class ConfirmLinkSecondaryAuthenticationProviderTest extends \MediaWikiTestCase {
-	protected function setUp() {
-		global $wgDisableAuthManager;
-
-		parent::setUp();
-		if ( $wgDisableAuthManager ) {
-			$this->markTestSkipped( '$wgDisableAuthManager is set' );
-		}
-	}
-
 	/**
 	 * @dataProvider provideGetAuthenticationRequests
 	 * @param string $action
@@ -128,12 +119,27 @@ class ConfirmLinkSecondaryAuthenticationProviderTest extends \MediaWikiTestCase 
 	}
 
 	public function testBeginLinkAttempt() {
+		$badReq = $this->getMockBuilder( AuthenticationRequest::class )
+			->setMethods( [ 'getUniqueId' ] )
+			->getMockForAbstractClass();
+		$badReq->expects( $this->any() )->method( 'getUniqueId' )
+			->will( $this->returnValue( "BadReq" ) );
+
 		$user = \User::newFromName( 'UTSysop' );
 		$provider = \TestingAccessWrapper::newFromObject(
 			new ConfirmLinkSecondaryAuthenticationProvider
 		);
 		$request = new \FauxRequest();
-		$manager = new AuthManager( $request, \RequestContext::getMain()->getConfig() );
+		$manager = $this->getMockBuilder( AuthManager::class )
+			->setMethods( [ 'allowsAuthenticationDataChange' ] )
+			->setConstructorArgs( [ $request, \RequestContext::getMain()->getConfig() ] )
+			->getMock();
+		$manager->expects( $this->any() )->method( 'allowsAuthenticationDataChange' )
+			->will( $this->returnCallback( function ( $req ) {
+				return $req->getUniqueId() !== 'BadReq'
+					? \StatusValue::newGood()
+					: \StatusValue::newFatal( 'no' );
+			} ) );
 		$provider->setManager( $manager );
 
 		$this->assertEquals(
@@ -151,7 +157,7 @@ class ConfirmLinkSecondaryAuthenticationProviderTest extends \MediaWikiTestCase 
 
 		$reqs = $this->getLinkRequests();
 		$request->getSession()->setSecret( 'state', [
-			'maybeLink' => $reqs
+			'maybeLink' => $reqs + [ 'BadReq' => $badReq ]
 		] );
 		$res = $provider->beginLinkAttempt( $user, 'state' );
 		$this->assertInstanceOf( AuthenticationResponse::class, $res );
@@ -160,7 +166,12 @@ class ConfirmLinkSecondaryAuthenticationProviderTest extends \MediaWikiTestCase 
 		$this->assertCount( 1, $res->neededRequests );
 		$req = $res->neededRequests[0];
 		$this->assertInstanceOf( ConfirmLinkAuthenticationRequest::class, $req );
-		$this->assertEquals( $reqs, \TestingAccessWrapper::newFromObject( $req )->linkRequests );
+		$expectReqs = $this->getLinkRequests();
+		foreach ( $expectReqs as $r ) {
+			$r->action = AuthManager::ACTION_CHANGE;
+			$r->username = $user->getName();
+		}
+		$this->assertEquals( $expectReqs, \TestingAccessWrapper::newFromObject( $req )->linkRequests );
 	}
 
 	public function testContinueLinkAttempt() {

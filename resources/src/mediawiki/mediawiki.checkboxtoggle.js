@@ -12,25 +12,30 @@
 ( function ( mw, $ ) {
 	'use strict';
 
-	var $checkboxes = $( 'li input[type=checkbox]' );
+	$( function () {
+		// FIXME: This shouldn't be a global selector to avoid conflicts
+		// with unrelated content on the same page. (T131318)
+		var $checkboxes = $( 'li input[type="checkbox"]' );
 
-	function selectAll( check ) {
-		$checkboxes.prop( 'checked', check );
-	}
+		function selectAll( check ) {
+			$checkboxes.prop( 'checked', check );
+		}
 
-	$( '.mw-checkbox-all' ).click( function ( e ) {
-		selectAll( true );
-		e.preventDefault();
-	} );
-	$( '.mw-checkbox-none' ).click( function ( e ) {
-		selectAll( false );
-		e.preventDefault();
-	} );
-	$( '.mw-checkbox-invert' ).click( function ( e ) {
-		$checkboxes.each( function () {
-			$( this ).prop( 'checked', !$( this ).is( ':checked' ) );
+		$( '.mw-checkbox-all' ).click( function ( e ) {
+			e.preventDefault();
+			selectAll( true );
 		} );
-		e.preventDefault();
+		$( '.mw-checkbox-none' ).click( function ( e ) {
+			e.preventDefault();
+			selectAll( false );
+		} );
+		$( '.mw-checkbox-invert' ).click( function ( e ) {
+			e.preventDefault();
+			$checkboxes.prop( 'checked', function ( i, val ) {
+				return !val;
+			} );
+		} );
+
 	} );
 
 }( mediaWiki, jQuery ) );
